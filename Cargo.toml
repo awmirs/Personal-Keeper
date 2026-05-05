@@ -1,0 +1,20 @@
+[workspace]
+members = [
+    "crates/core",
+    "crates/storage-sqlite",
+    "crates/crypto",
+    "crates/sync",
+    "crates/api",
+    "crates/cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4"
