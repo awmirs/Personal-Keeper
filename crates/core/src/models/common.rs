@@ -53,7 +53,7 @@ impl Default for ItemMetadata {
             .unwrap_or_default()
             .as_secs() as i64;
         Self {
-            id: Uuid::new_v7(),
+            id: Uuid::now_v7(),
             created_at: now,
             updated_at: now,
             tags: vec![],

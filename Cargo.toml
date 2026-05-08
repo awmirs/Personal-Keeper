@@ -2,10 +2,10 @@
 members = [
     "crates/core",
     "crates/storage-sqlite",
-    "crates/crypto",
-    "crates/sync",
+#    "crates/crypto",
+#    "crates/sync",
     "crates/api",
-    "crates/cli",
+#    "crates/cli",
 ]
 resolver = "2"
 
@@ -13,8 +13,3 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-actix-web = "4"

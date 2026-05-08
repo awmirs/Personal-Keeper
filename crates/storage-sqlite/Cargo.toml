@@ -1,0 +1,16 @@
+[package]
+name = "storage-sqlite"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+core = { path = "../core" }
+
+rusqlite = { version = "0.31", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
+refinery = { version = "0.8", features = ["rusqlite"] }
+async-trait = "0.1"
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }   # needed for spawn_blocking
