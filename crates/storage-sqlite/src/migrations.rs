@@ -1,5 +1,3 @@
-use refinery::config::{Config, ConfigDbType};
-
 mod embedded {
     use refinery::embed_migrations;
     embed_migrations!("migrations");
