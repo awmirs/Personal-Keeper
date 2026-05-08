@@ -1,3 +1,4 @@
+pub mod health;
 pub mod notes;
 pub mod clipboard;
-pub mod users;
+pub mod auth;

@@ -2,7 +2,7 @@
 members = [
     "crates/domain",
     "crates/storage-sqlite",
-#    "crates/crypto",
+    "crates/crypto",
 #    "crates/sync",
     "crates/api",
 #    "crates/cli",
