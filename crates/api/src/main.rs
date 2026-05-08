@@ -8,6 +8,7 @@ use storage_sqlite::migrations::run_migrations;
 use storage_sqlite::pool::create_pool;
 use storage_sqlite::repositories::clipboard::ClipboardRepository;
 use storage_sqlite::repositories::notes::NoteRepository;
+use storage_sqlite::repositories::todos::TodoRepository;
 use storage_sqlite::repositories::users::UserRepository;
 use crate::middleware::auth::Authenticated;
 use crate::routes::auth;
@@ -15,6 +16,7 @@ use crate::routes::auth;
 struct AppState {
     notes_repo: Arc<NoteRepository>,
     clipboard_repo: Arc<ClipboardRepository>,
+    pub todo_repo: Arc<TodoRepository>,
     pub user_repo: Arc<UserRepository>,
 }
 
@@ -32,13 +34,15 @@ async fn main() -> std::io::Result<()> {
 
     let pool_clone = pool.clone();
     let notes_repo = Arc::new(NoteRepository::new(Arc::new(pool.clone())));
-    let clipboard_repo = Arc::new(ClipboardRepository::new(Arc::new(pool)));
+    let clipboard_repo = Arc::new(ClipboardRepository::new(Arc::new(pool.clone())));
     let user_repo = Arc::new(UserRepository::new(Arc::new(pool_clone)));
+    let todo_repo = Arc::new(TodoRepository::new(Arc::new(pool.clone())));
 
     let app_state = web::Data::new(AppState {
         notes_repo,
         clipboard_repo,
         user_repo,
+        todo_repo,
     });
 
     println!("Server running on http://0.0.0.0:8080");
@@ -61,7 +65,11 @@ async fn main() -> std::io::Result<()> {
                     .route("/notes", web::get().to(routes::notes::list_notes))
                     .route("/clipboard", web::post().to(routes::clipboard::create_clipboard))
                     .route("/clipboard", web::get().to(routes::clipboard::list_clipboard))
-                    .route("/clipboard/{id}", web::delete().to(routes::clipboard::delete_clipboard)),
+                    .route("/clipboard/{id}", web::delete().to(routes::clipboard::delete_clipboard))
+                    .route("/todos", web::post().to(routes::todos::create_todo))
+                    .route("/todos", web::get().to(routes::todos::list_todos))
+                    .route("/todos/{id}", web::put().to(routes::todos::update_todo))
+                    .route("/todos/{id}", web::delete().to(routes::todos::delete_todo)),
             )
     })
         .bind("0.0.0.0:8080")?

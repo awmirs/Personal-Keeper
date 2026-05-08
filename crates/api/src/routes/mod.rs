@@ -2,3 +2,4 @@ pub mod health;
 pub mod notes;
 pub mod clipboard;
 pub mod auth;
+pub mod todos;
