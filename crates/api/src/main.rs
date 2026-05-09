@@ -8,6 +8,7 @@ use storage_sqlite::migrations::run_migrations;
 use storage_sqlite::pool::create_pool;
 use storage_sqlite::repositories::bookmarks::BookmarkRepository;
 use storage_sqlite::repositories::clipboard::ClipboardRepository;
+use storage_sqlite::repositories::contacts::ContactRepository;
 use storage_sqlite::repositories::notes::NoteRepository;
 use storage_sqlite::repositories::todos::TodoRepository;
 use storage_sqlite::repositories::users::UserRepository;
@@ -19,6 +20,7 @@ struct AppState {
     clipboard_repo: Arc<ClipboardRepository>,
     pub todo_repo: Arc<TodoRepository>,
     pub bookmark_repo: Arc<BookmarkRepository>,
+    pub contact_repo: Arc<ContactRepository>,
     pub user_repo: Arc<UserRepository>,
 }
 
@@ -40,6 +42,7 @@ async fn main() -> std::io::Result<()> {
     let user_repo = Arc::new(UserRepository::new(Arc::new(pool_clone)));
     let todo_repo = Arc::new(TodoRepository::new(Arc::new(pool.clone())));
     let bookmark_repo = Arc::new(BookmarkRepository::new(Arc::new(pool.clone())));
+    let contact_repo = Arc::new(ContactRepository::new(Arc::new(pool.clone())));
 
     let app_state = web::Data::new(AppState {
         notes_repo,
@@ -47,6 +50,7 @@ async fn main() -> std::io::Result<()> {
         user_repo,
         todo_repo,
         bookmark_repo,
+        contact_repo,
     });
 
     println!("Server running on http://0.0.0.0:8080");
@@ -76,7 +80,10 @@ async fn main() -> std::io::Result<()> {
                     .route("/todos/{id}", web::delete().to(routes::todos::delete_todo))
                     .route("/bookmarks", web::post().to(routes::bookmarks::create_bookmark))
                     .route("/bookmarks", web::get().to(routes::bookmarks::list_bookmarks))
-                    .route("/bookmarks/{id}", web::delete().to(routes::bookmarks::delete_bookmark)),
+                    .route("/bookmarks/{id}", web::delete().to(routes::bookmarks::delete_bookmark))
+                    .route("/contacts", web::post().to(routes::contacts::create_contact))
+                    .route("/contacts", web::get().to(routes::contacts::list_contacts))
+                    .route("/contacts/{id}", web::delete().to(routes::contacts::delete_contact)),
             )
     })
         .bind("0.0.0.0:8080")?
