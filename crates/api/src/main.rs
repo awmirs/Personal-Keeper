@@ -3,6 +3,7 @@ mod middleware;
 
 use actix_web::{web, App, HttpServer};
 use std::sync::Arc;
+use actix_files::Files;
 
 use storage_sqlite::migrations::run_migrations;
 use storage_sqlite::pool::create_pool;
@@ -83,7 +84,9 @@ async fn main() -> std::io::Result<()> {
                     .route("/bookmarks/{id}", web::delete().to(routes::bookmarks::delete_bookmark))
                     .route("/contacts", web::post().to(routes::contacts::create_contact))
                     .route("/contacts", web::get().to(routes::contacts::list_contacts))
-                    .route("/contacts/{id}", web::delete().to(routes::contacts::delete_contact)),
+                    .route("/contacts/{id}", web::delete().to(routes::contacts::delete_contact))
+                    // Serve frontend static files as fallback
+                    .service(Files::new("/", "./frontend/dist").index_file("index.html")),
             )
     })
         .bind("0.0.0.0:8080")?
