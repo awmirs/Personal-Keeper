@@ -57,3 +57,42 @@ pub async fn delete_bookmark(
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }
+
+#[derive(serde::Deserialize)]
+pub struct UpdateBookmarkRequest {
+    pub url: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+}
+
+pub async fn update_bookmark(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<UpdateBookmarkRequest>,
+) -> impl Responder {
+    let id = path.into_inner();
+    let existing = match data.bookmark_repo.find_by_id(&id).await {
+        Ok(Some(b)) => b,
+        _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Bookmark not found" })),
+    };
+
+    let updated = Bookmark {
+        meta: domain::models::common::ItemMetadata {
+            updated_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+            ..existing.meta
+        },
+        url: body.url.clone().unwrap_or(existing.url),
+        title: body.title.clone().unwrap_or(existing.title),
+        description: body.description.clone().unwrap_or(existing.description),
+        favicon: existing.favicon,
+        thumbnail: existing.thumbnail,
+    };
+
+    match data.bookmark_repo.save(&updated).await {
+        Ok(()) => HttpResponse::Ok().json(&updated),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}

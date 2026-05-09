@@ -59,3 +59,43 @@ pub async fn delete_contact(
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }
+#[derive(serde::Deserialize)]
+pub struct UpdateContactRequest {
+    pub name: Option<String>,
+    pub phones: Option<Vec<String>>,
+    pub emails: Option<Vec<String>>,
+    pub addresses: Option<Vec<String>>,
+    pub notes: Option<String>,
+}
+
+pub async fn update_contact(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<UpdateContactRequest>,
+) -> impl Responder {
+    let id = path.into_inner();
+    let existing = match data.contact_repo.find_by_id(&id).await {
+        Ok(Some(c)) => c,
+        _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Contact not found" })),
+    };
+
+    let updated = Contact {
+        meta: domain::models::common::ItemMetadata {
+            updated_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
+            ..existing.meta
+        },
+        name: body.name.clone().unwrap_or(existing.name),
+        phones: body.phones.clone().unwrap_or(existing.phones),
+        emails: body.emails.clone().unwrap_or(existing.emails),
+        addresses: body.addresses.clone().unwrap_or(existing.addresses),
+        notes: body.notes.clone().unwrap_or(existing.notes),
+    };
+
+    match data.contact_repo.save(&updated).await {
+        Ok(()) => HttpResponse::Ok().json(&updated),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}

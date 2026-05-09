@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../lib/auth'
 import { Sun, Moon, Search, Menu, X } from 'lucide-react'
+import GlobalSearch from '../GlobalSearch'
 
 export default function Layout() {
     const navigate = useNavigate()
@@ -30,8 +31,20 @@ export default function Layout() {
         }
     }, [dark])
 
+    useEffect(() => {
+        const down = (e: KeyboardEvent) => {
+            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                setGlobalSearchOpen((open) => !open)
+            }
+        }
+        document.addEventListener('keydown', down)
+        return () => document.removeEventListener('keydown', down)
+    }, [])
+
     // Mobile sidebar toggle
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
 
     const handleLogout = () => {
         logout()
@@ -112,13 +125,12 @@ export default function Layout() {
                         <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Search all vaults..."
-                            className="w-full rounded border pl-10 pr-4 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            // Placeholder for future global search
+                            placeholder="Search all vaults... (Ctrl+K)"
+                            readOnly
+                            onClick={() => setGlobalSearchOpen(true)}
+                            className="w-full rounded border pl-10 pr-4 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white cursor-pointer"
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    window.location.href = `/?search=${encodeURIComponent((e.target as HTMLInputElement).value)}`
-                                }
+                                if (e.key === 'Escape') setGlobalSearchOpen(false)
                             }}
                         />
                     </div>
@@ -128,6 +140,7 @@ export default function Layout() {
                     <Outlet />
                 </main>
             </div>
+            <GlobalSearch isOpen={globalSearchOpen} onClose={() => setGlobalSearchOpen(false)} />
         </div>
     )
 }

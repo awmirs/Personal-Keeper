@@ -11,9 +11,20 @@ export default function Login() {
     const register = useAuthStore((s) => s.register)
     const navigate = useNavigate()
 
+    const validate = (): string | null => {
+        if (!username.trim()) return 'Username is required'
+        if (password.length < 8) return 'Password must be at least 8 characters'
+        return null
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setError('')
+        const validationError = validate()
+        if (validationError) {
+            setError(validationError)
+            return
+        }
         const success = isRegister ? await register(username, password) : await login(username, password)
         if (success) {
             navigate('/')
@@ -39,13 +50,14 @@ export default function Login() {
                 <input
                     className="mb-3 w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     type="password"
-                    placeholder="Password"
+                    placeholder="Password (min 8 chars)"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                     type="submit"
-                    className="w-full rounded bg-blue-600 py-2 text-white hover:bg-blue-700"
+                    className="w-full rounded bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+                    disabled={!username.trim() || password.length < 8}
                 >
                     {isRegister ? 'Register' : 'Login'}
                 </button>
