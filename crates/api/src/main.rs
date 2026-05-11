@@ -2,8 +2,8 @@ mod routes;
 mod middleware;
 
 use actix_web::{web, App, HttpServer};
-use std::sync::Arc;
 use actix_files::Files;
+use std::sync::{Arc, Mutex};
 
 use storage_sqlite::migrations::run_migrations;
 use storage_sqlite::pool::create_pool;
@@ -13,6 +13,8 @@ use storage_sqlite::repositories::contacts::ContactRepository;
 use storage_sqlite::repositories::notes::NoteRepository;
 use storage_sqlite::repositories::todos::TodoRepository;
 use storage_sqlite::repositories::users::UserRepository;
+use storage_sqlite::repositories::credentials::CredentialRepository;
+use storage_sqlite::repositories::credentials_config::CredentialConfigRepository;
 use crate::middleware::auth::Authenticated;
 use crate::routes::auth;
 
@@ -22,7 +24,10 @@ struct AppState {
     pub todo_repo: Arc<TodoRepository>,
     pub bookmark_repo: Arc<BookmarkRepository>,
     pub contact_repo: Arc<ContactRepository>,
+    pub credential_repo: Arc<CredentialRepository>,
+    pub credential_config_repo: Arc<CredentialConfigRepository>,
     pub user_repo: Arc<UserRepository>,
+    pub master_key: Arc<Mutex<Option<[u8; 32]>>>,   // derived key
 }
 
 
@@ -44,6 +49,10 @@ async fn main() -> std::io::Result<()> {
     let todo_repo = Arc::new(TodoRepository::new(Arc::new(pool.clone())));
     let bookmark_repo = Arc::new(BookmarkRepository::new(Arc::new(pool.clone())));
     let contact_repo = Arc::new(ContactRepository::new(Arc::new(pool.clone())));
+    let credential_config_repo = Arc::new(CredentialConfigRepository::new(Arc::new(pool.clone())));
+    let credential_repo = Arc::new(CredentialRepository::new(Arc::new(pool.clone())));
+    let master_key = Arc::new(Mutex::new(None));
+
 
     let app_state = web::Data::new(AppState {
         notes_repo,
@@ -52,6 +61,9 @@ async fn main() -> std::io::Result<()> {
         todo_repo,
         bookmark_repo,
         contact_repo,
+        credential_config_repo,
+        credential_repo,
+        master_key
     });
 
     println!("Server running on http://0.0.0.0:8080");
@@ -88,6 +100,14 @@ async fn main() -> std::io::Result<()> {
                     .route("/contacts/{id}", web::put().to(routes::contacts::update_contact))
                     .route("/contacts", web::get().to(routes::contacts::list_contacts))
                     .route("/contacts/{id}", web::delete().to(routes::contacts::delete_contact))
+                    .route("/credentials/status", web::get().to(routes::credentials::vault_status))
+                    .route("/credentials/unlock", web::post().to(routes::credentials::unlock))
+                    .route("/credentials/lock", web::post().to(routes::credentials::lock))
+                    .route("/credentials", web::post().to(routes::credentials::create_credential))
+                    .route("/credentials", web::get().to(routes::credentials::list_credentials))
+                    .route("/credentials/{id}", web::get().to(routes::credentials::get_credential))
+                    .route("/credentials/{id}", web::put().to(routes::credentials::update_credential))
+                    .route("/credentials/{id}", web::delete().to(routes::credentials::delete_credential))
                     // Serve frontend static files as fallback
                     .service(Files::new("/", "./frontend/dist").index_file("index.html")),
             )

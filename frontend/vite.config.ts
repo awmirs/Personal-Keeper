@@ -39,6 +39,7 @@ export default defineConfig({
             '/todos': 'http://localhost:8080',
             '/bookmarks': 'http://localhost:8080',
             '/contacts': 'http://localhost:8080',
+            '/credentials': 'http://localhost:8080',
             '/health': 'http://localhost:8080'
         }
     }

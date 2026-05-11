@@ -57,6 +57,7 @@ export default function Layout() {
         { to: '/todos', label: 'Todos' },
         { to: '/bookmarks', label: 'Bookmarks' },
         { to: '/contacts', label: 'Contacts' },
+        { to: '/credentials', label: 'Credentials' },
     ]
 
     return (
