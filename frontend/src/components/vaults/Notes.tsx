@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import type { Note } from '../../types'
 import ReactMarkdown from 'react-markdown'
+import { markdownComponents } from '../../lib/markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Plus, Trash2, Search, Edit3 } from 'lucide-react'
@@ -195,6 +196,7 @@ export default function Notes() {
                                     <ReactMarkdown
                                         remarkPlugins={[remarkGfm]}
                                         rehypePlugins={[rehypeHighlight]}
+                                        components={markdownComponents}
                                     >
                                         {note.content}
                                     </ReactMarkdown>

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import type { ClipboardItem } from '../../types'
 import { Plus, Trash2, Copy, Search, Check } from 'lucide-react'
+import AutoDirText from "../AutoDirText.tsx";
 
 export default function Clipboard() {
   const [items, setItems] = useState<ClipboardItem[]>([])
@@ -138,9 +139,11 @@ export default function Clipboard() {
                   className="rounded bg-white p-4 shadow dark:bg-gray-800 group relative flex flex-col"
               >
                 <div className="flex justify-between items-start mb-2">
-              <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 flex-1">
-                {item.content}
-              </pre>
+                  <AutoDirText
+                      text={item.content}
+                      className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 flex-1"
+                      as="div"
+                  />
                   <div className="flex gap-2 ml-2">
                     <button
                         onClick={() => copyToClipboard(item.content, item.id)}

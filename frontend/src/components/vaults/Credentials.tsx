@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import AutoDirText from "../AutoDirText.tsx";
 
 type CredentialEntry = {
     id: string
@@ -423,14 +424,14 @@ export default function Credentials() {
                                             {detail.notes_plain && (
                                                 <div>
                                                     <label className="text-xs text-gray-500 uppercase">Notes</label>
-                                                    <p className="dark:text-white whitespace-pre-wrap">{detail.notes_plain}</p>
+                                                    <AutoDirText text={detail.notes_plain || ''} as="p" className="dark:text-white whitespace-pre-wrap" />
                                                 </div>
                                             )}
                                             {detail.totp_secret_plain && (
                                                 <div>
                                                     <label className="text-xs text-gray-500 uppercase">TOTP Secret</label>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="dark:text-white font-mono">{showPassword ? detail.totp_secret_plain : '••••••••'}</span>
+                                                        <AutoDirText text={showPassword ? detail.totp_secret_plain || '' : '••••••••'} as="span" className="dark:text-white font-mono" />
                                                         <button onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-blue-500">
                                                             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                                         </button>

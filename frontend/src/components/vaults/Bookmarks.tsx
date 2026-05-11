@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import type { Bookmark } from '../../types'
 import { Plus, Trash2, Search, ExternalLink, Edit3 } from 'lucide-react'
+import AutoDirText from "../AutoDirText.tsx";
 
 export default function Bookmarks() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
@@ -117,7 +118,7 @@ export default function Bookmarks() {
                         <a href={b.url} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
                           {b.title || b.url} <ExternalLink size={14} />
                         </a>
-                        {b.description && <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">{b.description}</p>}
+                        {b.description && <AutoDirText text={b.description} as="p" className="text-gray-600 dark:text-gray-400 text-sm mt-1" />}
                         <p className="text-xs text-gray-400 mt-1">{new Date(b.updated_at * 1000).toLocaleString()}</p>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

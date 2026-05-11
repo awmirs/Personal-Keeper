@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import type { Contact } from '../../types'
 import { Plus, Trash2, Search, Phone, Mail, MapPin, Edit3 } from 'lucide-react'
+import AutoDirText from "../AutoDirText.tsx";
 
 export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -151,7 +152,7 @@ export default function Contacts() {
                           {c.emails.map((email, i) => <div key={i} className="flex items-center gap-1"><Mail size={14} /> {email}</div>)}
                           {c.addresses.map((addr, i) => <div key={i} className="flex items-center gap-1"><MapPin size={14} /> {addr}</div>)}
                         </div>
-                        {c.notes && <p className="text-gray-500 dark:text-gray-400 text-sm mt-2 italic">{c.notes}</p>}
+                        {c.notes && <AutoDirText text={c.notes} as="p" className="text-gray-500 dark:text-gray-400 text-sm mt-2 italic" />}
                         <p className="text-xs text-gray-400 mt-2">{new Date(c.updated_at * 1000).toLocaleString()}</p>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

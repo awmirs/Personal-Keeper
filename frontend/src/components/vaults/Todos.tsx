@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import type { Todo } from '../../types'
 import { Plus, Trash2, Search, CheckCircle, Circle } from 'lucide-react'
+import AutoDirText from "../AutoDirText.tsx";
 
 export default function Todos() {
   const [todos, setTodos] = useState<Todo[]>([])
@@ -162,9 +163,11 @@ export default function Todos() {
                     {todo.title}
                   </h3>
                   {todo.description && (
-                      <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                        {todo.description}
-                      </p>
+                      <AutoDirText
+                          text={todo.description}
+                          as="p"
+                          className="text-gray-600 dark:text-gray-400 text-sm mt-1"
+                      />
                   )}
                   <p className="text-xs text-gray-400 mt-1">
                     {new Date(todo.updated_at * 1000).toLocaleString()}
