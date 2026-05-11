@@ -1,8 +1,15 @@
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::env;
+use std::sync::OnceLock;
 
-const JWT_SECRET: &str = "change-me-in-production-use-a-long-random-string";
+fn jwt_secret() -> &'static str {
+    static SECRET: OnceLock<String> = OnceLock::new();
+    SECRET.get_or_init(|| {
+        env::var("JWT_SECRET").unwrap_or_else(|_| "dev-secret-not-for-production".to_string())
+    })
+}
 const ACCESS_TOKEN_MINUTES: u64 = 15;
 const REFRESH_TOKEN_DAYS: u64 = 7;
 
@@ -28,7 +35,7 @@ pub fn create_access_token(user_id: &str) -> Result<String, jsonwebtoken::errors
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(JWT_SECRET.as_ref()),
+        &EncodingKey::from_secret(jwt_secret().as_ref()),
     )
 }
 
@@ -46,14 +53,14 @@ pub fn create_refresh_token(user_id: &str) -> Result<String, jsonwebtoken::error
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(JWT_SECRET.as_ref()),
+        &EncodingKey::from_secret(jwt_secret().as_ref()),
     )
 }
 
 pub fn verify_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let token_data = decode::<Claims>(
         token,
-        &DecodingKey::from_secret(JWT_SECRET.as_ref()),
+        &DecodingKey::from_secret(jwt_secret().as_ref()),
         &Validation::default(),
     )?;
     Ok(token_data.claims)

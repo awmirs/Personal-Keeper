@@ -34,6 +34,7 @@ struct AppState {
 // ---------------- Main ----------------
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenvy::dotenv().ok();   // load .env if present
     // Create the data directory if it doesn't exist (optional)
     let _ = std::fs::create_dir_all("data");
 
