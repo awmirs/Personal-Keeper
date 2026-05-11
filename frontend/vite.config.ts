@@ -33,13 +33,7 @@ export default defineConfig({
     ],
     server: {
         proxy: {
-            '/auth': 'http://localhost:8080',
-            '/notes': 'http://localhost:8080',
-            '/clipboard': 'http://localhost:8080',
-            '/todos': 'http://localhost:8080',
-            '/bookmarks': 'http://localhost:8080',
-            '/contacts': 'http://localhost:8080',
-            '/credentials': 'http://localhost:8080',
+            '/api': 'http://localhost:8080',
             '/health': 'http://localhost:8080'
         }
     }

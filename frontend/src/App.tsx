@@ -8,6 +8,8 @@ import Todos from './components/vaults/Todos'
 import Bookmarks from './components/vaults/Bookmarks'
 import Contacts from './components/vaults/Contacts'
 import Credentials from './components/vaults/Credentials'
+import {useEffect} from "react";
+import api from "./lib/api.ts";
 
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
     const token = useAuthStore((s) => s.accessToken)
@@ -15,6 +17,15 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
 }
 
 export default function App() {
+
+    const { accessToken, logout } = useAuthStore()
+
+    useEffect(() => {
+        if (accessToken) {
+            api.get('/auth/me').catch(() => logout())
+        }
+    }, [])
+
     return (
         <BrowserRouter>
             <Routes>

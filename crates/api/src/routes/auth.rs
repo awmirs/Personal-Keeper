@@ -1,6 +1,7 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpMessage, HttpResponse, Responder};
 use crypto::hash::{hash_password, verify_password};
 use crypto::jwt::{create_access_token, create_refresh_token, verify_token};
+use crypto::jwt::Claims;
 
 use crate::AppState;
 
@@ -109,4 +110,18 @@ pub async fn refresh(
         access_token: access,
         refresh_token: refresh,
     })
+}
+
+pub async fn me(
+    _data: web::Data<AppState>,
+    req: actix_web::HttpRequest,
+) -> impl Responder {
+    let claims = req.extensions().get::<Claims>().cloned();
+    match claims {
+        Some(c) => HttpResponse::Ok().json(serde_json::json!({
+            "user_id": c.sub,
+            "username": ""  // We don't store username in claims; could look it up later
+        })),
+        None => HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Not authenticated" })),
+    }
 }

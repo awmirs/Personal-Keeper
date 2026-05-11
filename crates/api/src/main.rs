@@ -70,21 +70,27 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
-            // Public routes
+            // --- public API ---
             .route("/health", web::get().to(routes::health::health))
             .service(
-                web::scope("/auth")
+                web::scope("/api/auth")
                     .route("/register", web::post().to(auth::register))
                     .route("/login", web::post().to(auth::login))
-                    .route("/refresh", web::post().to(auth::refresh)),
+                    .route("/refresh", web::post().to(auth::refresh))
+                    // protected sub‑scope
+                    .service(
+                        web::scope("")
+                            .wrap(Authenticated)
+                            .route("/me", web::get().to(routes::auth::me)),
+                    ),
             )
-            // Protected routes (wrapped with Authenticated middleware)
+            // --- protected API (all under /api) ---
             .service(
-                web::scope("")
+                web::scope("/api")
                     .wrap(Authenticated)
                     .route("/notes", web::post().to(routes::notes::create_note))
-                    .route("/notes/{id}", web::put().to(routes::notes::update_note))
                     .route("/notes", web::get().to(routes::notes::list_notes))
+                    .route("/notes/{id}", web::put().to(routes::notes::update_note))
                     .route("/clipboard", web::post().to(routes::clipboard::create_clipboard))
                     .route("/clipboard", web::get().to(routes::clipboard::list_clipboard))
                     .route("/clipboard/{id}", web::delete().to(routes::clipboard::delete_clipboard))
@@ -107,10 +113,10 @@ async fn main() -> std::io::Result<()> {
                     .route("/credentials", web::get().to(routes::credentials::list_credentials))
                     .route("/credentials/{id}", web::get().to(routes::credentials::get_credential))
                     .route("/credentials/{id}", web::put().to(routes::credentials::update_credential))
-                    .route("/credentials/{id}", web::delete().to(routes::credentials::delete_credential))
-                    // Serve frontend static files as fallback
-                    .service(Files::new("/", "./frontend/dist").index_file("index.html")),
+                    .route("/credentials/{id}", web::delete().to(routes::credentials::delete_credential)),
             )
+            // --- SPA fallback (serve index.html for anything else) ---
+            .service(Files::new("/", "./frontend/dist").index_file("index.html"))
     })
         .bind("0.0.0.0:8080")?
         .run()
