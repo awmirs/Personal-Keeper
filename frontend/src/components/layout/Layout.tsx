@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, Link, useNavigate } from 'react-router-dom'
+import {Outlet, Link, useNavigate, useLocation} from 'react-router-dom'
 import { useAuthStore } from '../../lib/auth'
 import { Sun, Moon, Search, Menu, X } from 'lucide-react'
 import GlobalSearch from '../GlobalSearch'
@@ -49,6 +49,9 @@ export default function Layout() {
         const stored = localStorage.getItem('desktopSidebarOpen')
         return stored === null ? true : stored === 'true' // desktop default open
     })
+
+    const location = useLocation()
+
     const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
@@ -83,15 +86,14 @@ export default function Layout() {
             {/* Sidebar */}
             <aside
                 className={`
-          fixed inset-y-0 left-0 z-50 bg-gray-800 text-white
+          fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 text-white p-4
           transform
-          ${mounted ? 'transition-all duration-300 ease-in-out' : ''}
-          flex flex-col h-full overflow-hidden
-          lg:relative lg:translate-x-0 lg:flex-shrink-0
-          ${sidebarOpen ? 'translate-x-0 w-64 p-4 lg:w-64 lg:p-4' : '-translate-x-full w-64 p-4 lg:w-0 lg:p-0'}
+          ${mounted ? 'transition-transform duration-300 ease-in-out' : ''}
+          flex flex-col h-full overflow-y-auto
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
             >
-                <div className="w-64 flex-shrink-0 h-full flex flex-col relative">
+                <div className="h-full flex flex-col relative">
                     <div className="flex items-center justify-between mb-5 lg:mb-4">
                         <h1 className="text-xl font-bold flex-shrink-0">Personal Keeper</h1>
                         <button
@@ -104,20 +106,27 @@ export default function Layout() {
                     </div>
 
                     <nav className="space-y-1">
-                        {navLinks.map((link) => (
-                            <Link
-                                key={link.to}
-                                to={link.to}
-                                className="block py-2 px-3 rounded hover:bg-gray-700"
-                                onClick={() => {
-                                    if (!window.matchMedia('(min-width: 1024px)').matches) {
-                                        setSidebarOpen(false)
-                                    }
-                                }}
-                            >
-                                {link.label}
-                            </Link>
-                        ))}
+                        {navLinks.map((link) => {
+                            const isActive = link.to === '/'
+                                ? location.pathname === '/'
+                                : location.pathname.startsWith(link.to)
+                            return (
+                                <Link
+                                    key={link.to}
+                                    to={link.to}
+                                    className={`block py-2 px-3 rounded hover:bg-gray-700 ${
+                                        isActive ? 'bg-gray-700 font-semibold' : ''
+                                    }`}
+                                    onClick={() => {
+                                        if (!window.matchMedia('(min-width: 1024px)').matches) {
+                                            setSidebarOpen(false)
+                                        }
+                                    }}
+                                >
+                                    {link.label}
+                                </Link>
+                            )
+                        })}
                     </nav>
 
                     <div className="space-y-2 mt-auto">
@@ -147,7 +156,7 @@ export default function Layout() {
             )}
 
             {/* Main content */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className={`flex-1 flex flex-col min-w-0 ${mounted ? 'transition-[margin-left] duration-300 ease-in-out' : ''} ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-0'}`}>
                 <header className="bg-white dark:bg-gray-800 shadow p-4 flex items-center gap-4">
                     {/* Toggle button – slides with content, always next to search box */}
                     <button
