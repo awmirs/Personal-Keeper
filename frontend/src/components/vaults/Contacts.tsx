@@ -3,6 +3,7 @@ import api from '../../lib/api'
 import type { Contact } from '../../types'
 import { Plus, Trash2, Search, Phone, Mail, MapPin, Edit3 } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
+import LoadingSpinner from "../LoadingSpinner.tsx";
 
 export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -124,7 +125,7 @@ export default function Contacts() {
             </form>
         )}
 
-        {loading && <p className="text-gray-500">Loading...</p>}
+        {loading && <LoadingSpinner message="Loading contacts..." />}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && filtered.length === 0 && <p className="text-gray-500">No contacts found.</p>}
 

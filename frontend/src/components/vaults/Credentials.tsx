@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
+import LoadingSpinner from "../LoadingSpinner.tsx";
 
 type CredentialEntry = {
     id: string
@@ -216,7 +217,11 @@ export default function Credentials() {
     // If locked or first time not yet determined
     if (!unlocked) {
         if (firstTime === null) {
-            return <div className="max-w-md mx-auto mt-20 text-center text-gray-500">Loading vault status...</div>
+            return (
+                <div className="max-w-md mx-auto mt-20">
+                    <LoadingSpinner message="Checking vault..." />
+                </div>
+            )
         }
 
         return (
@@ -335,7 +340,7 @@ export default function Credentials() {
                 </form>
             )}
 
-            {loading && <p className="text-gray-500">Loading...</p>}
+            {loading && <LoadingSpinner message="Loading credentials..." />}
             {!loading && filtered.length === 0 && <p className="text-gray-500">No credentials.</p>}
 
             <div className="space-y-2">
@@ -364,7 +369,7 @@ export default function Credentials() {
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => { setSelectedId(null); setDetail(null) }}>
                     <div className="bg-white dark:bg-gray-800 rounded shadow-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         {detailLoading ? (
-                            <p className="text-center text-gray-500">Loading...</p>
+                            <LoadingSpinner message="Decrypting..." />
                         ) : detail ? (
                             <>
                                 <h3 className="text-xl font-bold dark:text-white mb-4">

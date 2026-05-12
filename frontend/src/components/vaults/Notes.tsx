@@ -6,6 +6,7 @@ import { markdownComponents } from '../../lib/markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Plus, Trash2, Search, Edit3 } from 'lucide-react'
+import LoadingSpinner from '../LoadingSpinner'
 
 export default function Notes() {
     const [notes, setNotes] = useState<Note[]>([])
@@ -141,7 +142,7 @@ export default function Notes() {
                 </form>
             )}
 
-            {loading && <p className="text-gray-500">Loading...</p>}
+            {loading && <LoadingSpinner message="Loading notes..." />}
             {error && <p className="text-red-500">Error: {error}</p>}
             {!loading && !error && filteredNotes.length === 0 && (
                 <p className="text-gray-500">No notes found.</p>

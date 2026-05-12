@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../../lib/api'
 import type { ClipboardItem } from '../../types'
 import { Plus, Trash2, Copy, Search, Check } from 'lucide-react'
+import LoadingSpinner from '../LoadingSpinner'
 import AutoDirText from "../AutoDirText.tsx";
 
 export default function Clipboard() {
@@ -126,7 +127,7 @@ export default function Clipboard() {
             </form>
         )}
 
-        {loading && <p className="text-gray-500">Loading...</p>}
+        {loading && <LoadingSpinner message="Loading snippets..." />}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && filtered.length === 0 && (
             <p className="text-gray-500">No snippets found.</p>

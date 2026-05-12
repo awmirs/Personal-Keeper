@@ -3,6 +3,7 @@ import api from '../../lib/api'
 import type { Bookmark } from '../../types'
 import { Plus, Trash2, Search, ExternalLink, Edit3 } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
+import LoadingSpinner from "../LoadingSpinner.tsx";
 
 export default function Bookmarks() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
@@ -95,7 +96,7 @@ export default function Bookmarks() {
             </form>
         )}
 
-        {loading && <p className="text-gray-500">Loading...</p>}
+        {loading && <LoadingSpinner message="Loading bookmarks..." />}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && filtered.length === 0 && <p className="text-gray-500">No bookmarks found.</p>}
 

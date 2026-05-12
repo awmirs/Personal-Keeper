@@ -3,6 +3,7 @@ import api from '../../lib/api'
 import type { Todo } from '../../types'
 import { Plus, Trash2, Search, CheckCircle, Circle } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
+import LoadingSpinner from "../LoadingSpinner.tsx";
 
 export default function Todos() {
   const [todos, setTodos] = useState<Todo[]>([])
@@ -129,7 +130,7 @@ export default function Todos() {
             </form>
         )}
 
-        {loading && <p className="text-gray-500">Loading...</p>}
+        {loading && <LoadingSpinner message="Loading todos..." />}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && filtered.length === 0 && (
             <p className="text-gray-500">No todos found.</p>
