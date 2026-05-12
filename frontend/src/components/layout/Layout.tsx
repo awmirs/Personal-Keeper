@@ -61,12 +61,13 @@ export default function Layout() {
     ]
 
     return (
-        <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
             {/* Sidebar */}
             <aside
                 className={`
           fixed inset-y-0 left-0 z-50 w-64 transform bg-gray-800 text-white p-4
           transition-transform duration-200 ease-in-out
+          flex flex-col h-full overflow-y-auto
           lg:relative lg:translate-x-0
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
@@ -91,7 +92,7 @@ export default function Layout() {
                     ))}
                 </nav>
 
-                <div className="absolute bottom-4 left-4 right-4 space-y-2">
+                <div className="space-y-2 mt-auto">
                     <button
                         onClick={() => setDark(!dark)}
                         className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-gray-700"
@@ -137,7 +138,7 @@ export default function Layout() {
                     </div>
                 </header>
 
-                <main className="flex-1 p-4 lg:p-6 dark:text-white">
+                <main className="flex-1 p-4 lg:p-6 dark:text-white overflow-y-auto">
                     <Outlet />
                 </main>
             </div>
