@@ -193,6 +193,7 @@ export default function Notes() {
                                         </button>
                                     </div>
                                 </div>
+                                <hr className="my-1 border-gray-200 dark:border-gray-700" />
                                 <div className="prose dark:prose-invert max-w-none text-gray-600 dark:text-gray-300">
                                     <ReactMarkdown
                                         remarkPlugins={[remarkGfm]}

@@ -163,6 +163,7 @@ export default function Todos() {
                   >
                     {todo.title}
                   </h3>
+                  <hr className="my-2 border-gray-200 dark:border-gray-700" />
                   {todo.description && (
                       <AutoDirText
                           text={todo.description}

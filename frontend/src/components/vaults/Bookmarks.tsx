@@ -119,6 +119,7 @@ export default function Bookmarks() {
                         <a href={b.url} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
                           {b.title || b.url} <ExternalLink size={14} />
                         </a>
+                        <hr className="my-2 border-gray-200 dark:border-gray-700" />
                         {b.description && <AutoDirText text={b.description} as="p" className="text-gray-600 dark:text-gray-400 text-sm mt-1" />}
                         <p className="text-xs text-gray-400 mt-1">{new Date(b.updated_at * 1000).toLocaleString()}</p>
                       </div>
