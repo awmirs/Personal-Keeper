@@ -42,8 +42,26 @@ export default function Layout() {
         return () => document.removeEventListener('keydown', down)
     }, [])
 
-    // Mobile sidebar toggle
-    const [sidebarOpen, setSidebarOpen] = useState(false)
+    // Determine initial state based on screen size and localStorage
+    const [sidebarOpen, setSidebarOpen] = useState(() => {
+        const mq = window.matchMedia('(min-width: 1024px)')
+        if (!mq.matches) return false // mobile always starts closed
+        const stored = localStorage.getItem('desktopSidebarOpen')
+        return stored === null ? true : stored === 'true' // desktop default open
+    })
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    // Persist desktop sidebar state to localStorage whenever it changes
+    useEffect(() => {
+        if (mounted && window.matchMedia('(min-width: 1024px)').matches) {
+            localStorage.setItem('desktopSidebarOpen', sidebarOpen ? 'true' : 'false')
+        }
+    }, [sidebarOpen, mounted])
+
     const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
 
     const handleLogout = () => {
@@ -61,51 +79,62 @@ export default function Layout() {
     ]
 
     return (
-        <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+        <div className="relative flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
             {/* Sidebar */}
             <aside
                 className={`
-          fixed inset-y-0 left-0 z-50 w-64 transform bg-gray-800 text-white p-4
-          transition-transform duration-200 ease-in-out
-          flex flex-col h-full overflow-y-auto
-          lg:relative lg:translate-x-0
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          fixed inset-y-0 left-0 z-50 bg-gray-800 text-white
+          transform
+          ${mounted ? 'transition-all duration-300 ease-in-out' : ''}
+          flex flex-col h-full overflow-hidden
+          lg:relative lg:translate-x-0 lg:flex-shrink-0
+          ${sidebarOpen ? 'translate-x-0 w-64 p-4 lg:w-64 lg:p-4' : '-translate-x-full w-64 p-4 lg:w-0 lg:p-0'}
         `}
             >
-                <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-xl font-bold">Personal Keeper</h1>
-                    <button onClick={() => setSidebarOpen(false)} className="lg:hidden">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <nav className="space-y-1">
-                    {navLinks.map((link) => (
-                        <Link
-                            key={link.to}
-                            to={link.to}
-                            className="block py-2 px-3 rounded hover:bg-gray-700"
+                <div className="w-64 flex-shrink-0 h-full flex flex-col relative">
+                    <div className="flex items-center justify-between mb-5 lg:mb-4">
+                        <h1 className="text-xl font-bold flex-shrink-0">Personal Keeper</h1>
+                        <button
                             onClick={() => setSidebarOpen(false)}
+                            className="lg:hidden flex-shrink-0 p-1 mr-6 rounded hover:bg-gray-700 transition-colors"
+                            aria-label="Close sidebar"
                         >
-                            {link.label}
-                        </Link>
-                    ))}
-                </nav>
+                            <X size={20} className="text-white" />
+                        </button>
+                    </div>
 
-                <div className="space-y-2 mt-auto">
-                    <button
-                        onClick={() => setDark(!dark)}
-                        className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-gray-700"
-                    >
-                        {dark ? <Sun size={18} /> : <Moon size={18} />}
-                        {dark ? 'Light Mode' : 'Dark Mode'}
-                    </button>
-                    <button
-                        onClick={handleLogout}
-                        className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-red-600 text-left"
-                    >
-                        Logout
-                    </button>
+                    <nav className="space-y-1">
+                        {navLinks.map((link) => (
+                            <Link
+                                key={link.to}
+                                to={link.to}
+                                className="block py-2 px-3 rounded hover:bg-gray-700"
+                                onClick={() => {
+                                    if (!window.matchMedia('(min-width: 1024px)').matches) {
+                                        setSidebarOpen(false)
+                                    }
+                                }}
+                            >
+                                {link.label}
+                            </Link>
+                        ))}
+                    </nav>
+
+                    <div className="space-y-2 mt-auto">
+                        <button
+                            onClick={() => setDark(!dark)}
+                            className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-gray-700"
+                        >
+                            {dark ? <Sun size={18} /> : <Moon size={18} />}
+                            {dark ? 'Light Mode' : 'Dark Mode'}
+                        </button>
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-red-600 text-left"
+                        >
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </aside>
 
@@ -120,8 +149,15 @@ export default function Layout() {
             {/* Main content */}
             <div className="flex-1 flex flex-col min-w-0">
                 <header className="bg-white dark:bg-gray-800 shadow p-4 flex items-center gap-4">
-                    <button onClick={() => setSidebarOpen(true)} className="lg:hidden">
-                        <Menu size={20} className="dark:text-white" />
+                    {/* Toggle button – slides with content, always next to search box */}
+                    <button
+                        onClick={() => setSidebarOpen(prev => !prev)}
+                        className={`flex-shrink-0 items-center justify-center w-8 h-8 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                            sidebarOpen ? 'lg:flex hidden' : 'flex'
+                        }`}
+                        aria-label="Toggle sidebar"
+                    >
+                        <Menu size={20} className="dark:text-white lg:text-gray-700 lg:dark:text-gray-200" />
                     </button>
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
