@@ -185,11 +185,11 @@ export default function Notes() {
                                 <div className="flex justify-between items-start">
                                     <h3 className="text-lg font-semibold dark:text-white mb-2">{note.title}</h3>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => startEdit(note)} className="text-gray-400 hover:text-blue-500">
-                                            <Edit3 size={18} />
+                                        <button onClick={() => startEdit(note)} className="text-gray-400 hover:text-blue-500 p-1">
+                                            <Edit3 size={20} />
                                         </button>
-                                        <button onClick={() => handleDelete(note.id)} className="text-gray-400 hover:text-red-500">
-                                            <Trash2 size={18} />
+                                        <button onClick={() => handleDelete(note.id)} className="text-gray-400 hover:text-red-500 p-1">
+                                            <Trash2 size={20} />
                                         </button>
                                     </div>
                                 </div>

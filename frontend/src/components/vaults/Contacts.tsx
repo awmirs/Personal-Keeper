@@ -149,16 +149,16 @@ export default function Contacts() {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold dark:text-white text-lg">{c.name}</h3>
                         <div className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                          {c.phones.map((phone, i) => <div key={i} className="flex items-center gap-1"><Phone size={14} /> {phone}</div>)}
-                          {c.emails.map((email, i) => <div key={i} className="flex items-center gap-1"><Mail size={14} /> {email}</div>)}
-                          {c.addresses.map((addr, i) => <div key={i} className="flex items-center gap-1"><MapPin size={14} /> {addr}</div>)}
+                          {c.phones.map((phone, i) => <div key={i} className="flex items-center gap-1"><Phone size={16} /> {phone}</div>)}
+                          {c.emails.map((email, i) => <div key={i} className="flex items-center gap-1"><Mail size={16} /> {email}</div>)}
+                          {c.addresses.map((addr, i) => <div key={i} className="flex items-center gap-1"><MapPin size={16} /> {addr}</div>)}
                         </div>
                         {c.notes && <AutoDirText text={c.notes} as="p" className="text-gray-500 dark:text-gray-400 text-sm mt-2 italic" />}
                         <p className="text-xs text-gray-400 mt-2">{new Date(c.updated_at * 1000).toLocaleString()}</p>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => startEdit(c)} className="text-gray-400 hover:text-blue-500"><Edit3 size={18} /></button>
-                        <button onClick={() => handleDelete(c.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
+                        <button onClick={() => startEdit(c)} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
+                        <button onClick={() => handleDelete(c.id)} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
                       </div>
                     </>
                 )}

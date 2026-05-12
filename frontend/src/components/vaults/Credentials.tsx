@@ -356,9 +356,9 @@ export default function Credentials() {
                         </div>
                         <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(cred.id) }}
-                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
                         >
-                            <Trash2 size={18} />
+                            <Trash2 size={20} />
                         </button>
                     </div>
                 ))}
@@ -407,8 +407,8 @@ export default function Credentials() {
                                                 <label className="text-xs text-gray-500 uppercase">Username</label>
                                                 <div className="flex items-center gap-2">
                                                     <span className="dark:text-white">{detail.username}</span>
-                                                    <button onClick={() => copyToClipboard(detail.username, 'username')} className="text-gray-400 hover:text-blue-500">
-                                                        {copiedField === 'username' ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                                                    <button onClick={() => copyToClipboard(detail.username, 'username')} className="text-gray-400 hover:text-blue-500 p-1">
+                                                        {copiedField === 'username' ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
                                                     </button>
                                                 </div>
                                             </div>
@@ -417,11 +417,11 @@ export default function Credentials() {
                                                     <label className="text-xs text-gray-500 uppercase">Password</label>
                                                     <div className="flex items-center gap-2">
                                                         <span className="dark:text-white font-mono">{showPassword ? detail.password_plain : '••••••••'}</span>
-                                                        <button onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-blue-500">
-                                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                        <button onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-blue-500 p-1">
+                                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                                         </button>
-                                                        <button onClick={() => copyToClipboard(detail.password_plain!, 'password')} className="text-gray-400 hover:text-blue-500">
-                                                            {copiedField === 'password' ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                                                        <button onClick={() => copyToClipboard(detail.password_plain!, 'password')} className="text-gray-400 hover:text-blue-500 p-1">
+                                                            {copiedField === 'password' ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -437,11 +437,11 @@ export default function Credentials() {
                                                     <label className="text-xs text-gray-500 uppercase">TOTP Secret</label>
                                                     <div className="flex items-center gap-2">
                                                         <AutoDirText text={showPassword ? detail.totp_secret_plain || '' : '••••••••'} as="span" className="dark:text-white font-mono" />
-                                                        <button onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-blue-500">
-                                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                        <button onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-blue-500 p-1">
+                                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                                         </button>
-                                                        <button onClick={() => copyToClipboard(detail.totp_secret_plain!, 'totp')} className="text-gray-400 hover:text-blue-500">
-                                                            {copiedField === 'totp' ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                                                        <button onClick={() => copyToClipboard(detail.totp_secret_plain!, 'totp')} className="text-gray-400 hover:text-blue-500 p-1">
+                                                            {copiedField === 'totp' ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
                                                         </button>
                                                     </div>
                                                 </div>

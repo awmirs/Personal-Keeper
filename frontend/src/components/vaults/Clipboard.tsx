@@ -148,17 +148,17 @@ export default function Clipboard() {
                   <div className="flex gap-2 ml-2">
                     <button
                         onClick={() => copyToClipboard(item.content, item.id)}
-                        className="text-gray-400 hover:text-blue-500 transition"
+                        className="text-gray-400 hover:text-blue-500 transition p-1"
                         title="Copy to clipboard"
                     >
-                      {copiedId === item.id ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+                      {copiedId === item.id ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
                     </button>
                     <button
                         onClick={() => handleDelete(item.id)}
-                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
                         title="Delete"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={20} />
                     </button>
                   </div>
                 </div>

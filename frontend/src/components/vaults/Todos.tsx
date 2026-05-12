@@ -146,13 +146,13 @@ export default function Todos() {
               >
                 <button
                     onClick={() => toggleCompleted(todo)}
-                    className="mt-0.5 text-gray-400 hover:text-green-500 flex-shrink-0"
+                    className="mt-0.5 text-gray-400 hover:text-green-500 flex-shrink-0 p-1"
                     title={todo.completed ? 'Mark incomplete' : 'Mark complete'}
                 >
                   {todo.completed ? (
-                      <CheckCircle size={20} className="text-green-500" />
+                      <CheckCircle size={22} className="text-green-500" />
                   ) : (
-                      <Circle size={20} />
+                      <Circle size={22} />
                   )}
                 </button>
                 <div className="flex-1 min-w-0">
@@ -177,10 +177,10 @@ export default function Todos() {
                 </div>
                 <button
                     onClick={() => handleDelete(todo.id)}
-                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1"
                     title="Delete"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={20} />
                 </button>
               </div>
           ))}

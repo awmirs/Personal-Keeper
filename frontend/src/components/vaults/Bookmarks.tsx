@@ -117,15 +117,15 @@ export default function Bookmarks() {
                     <>
                       <div className="flex-1 min-w-0">
                         <a href={b.url} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-                          {b.title || b.url} <ExternalLink size={14} />
+                          {b.title || b.url} <ExternalLink size={16} />
                         </a>
                         <hr className="my-2 border-gray-200 dark:border-gray-700" />
                         {b.description && <AutoDirText text={b.description} as="p" className="text-gray-600 dark:text-gray-400 text-sm mt-1" />}
                         <p className="text-xs text-gray-400 mt-1">{new Date(b.updated_at * 1000).toLocaleString()}</p>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => startEdit(b)} className="text-gray-400 hover:text-blue-500"><Edit3 size={18} /></button>
-                        <button onClick={() => handleDelete(b.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
+                        <button onClick={() => startEdit(b)} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
+                        <button onClick={() => handleDelete(b.id)} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
                       </div>
                     </>
                 )}
