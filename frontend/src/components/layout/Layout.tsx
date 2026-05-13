@@ -86,7 +86,9 @@ export default function Layout() {
             {/* Sidebar */}
             <aside
                 className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 text-white p-4
+          fixed inset-y-0 left-0 z-50 w-64 p-4
+          bg-white dark:bg-gray-800 text-gray-900 dark:text-white
+          border-r border-gray-200 dark:border-gray-700
           transform
           ${mounted ? 'transition-transform duration-300 ease-in-out' : ''}
           flex flex-col h-full overflow-y-auto
@@ -98,10 +100,10 @@ export default function Layout() {
                         <h1 className="text-xl font-bold flex-shrink-0">Personal Keeper</h1>
                         <button
                             onClick={() => setSidebarOpen(false)}
-                            className="lg:hidden flex-shrink-0 p-1 mr-6 rounded hover:bg-gray-700 transition-colors"
+                            className="lg:hidden flex-shrink-0 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                             aria-label="Close sidebar"
                         >
-                            <X size={20} className="text-white" />
+                            <X size={20} className="text-gray-600 dark:text-white" />
                         </button>
                     </div>
 
@@ -114,8 +116,8 @@ export default function Layout() {
                                 <Link
                                     key={link.to}
                                     to={link.to}
-                                    className={`block py-2 px-3 rounded hover:bg-gray-700 ${
-                                        isActive ? 'bg-gray-700 font-semibold' : ''
+                                    className={`block py-2 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                                        isActive ? 'bg-gray-200 dark:bg-gray-700 font-semibold' : ''
                                     }`}
                                     onClick={() => {
                                         if (!window.matchMedia('(min-width: 1024px)').matches) {
@@ -132,14 +134,14 @@ export default function Layout() {
                     <div className="space-y-2 mt-auto">
                         <button
                             onClick={() => setDark(!dark)}
-                            className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-gray-700"
+                            className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                         >
                             {dark ? <Sun size={18} /> : <Moon size={18} />}
                             {dark ? 'Light Mode' : 'Dark Mode'}
                         </button>
                         <button
                             onClick={handleLogout}
-                            className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-red-600 text-left"
+                            className="flex items-center gap-2 w-full py-2 px-3 rounded text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50"
                         >
                             Logout
                         </button>
