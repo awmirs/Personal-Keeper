@@ -121,7 +121,7 @@ impl Repository<Todo> for TodoRepository {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
                 "SELECT id, title, description, completed, due_date, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at
-                 FROM todos ORDER BY updated_at DESC"
+                 FROM todos ORDER BY created_at ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let rows = stmt.query_map([], row_to_todo)

@@ -48,10 +48,18 @@ export default function Todos() {
   }
 
   const toggleCompleted = async (todo: Todo) => {
+    // Optimistically update local state
+    const previousTodos = todos
+    const updatedTodos = todos.map(t =>
+        t.id === todo.id ? { ...t, completed: !t.completed, updated_at: Math.floor(Date.now() / 1000) } : t
+    )
+    setTodos(updatedTodos)
+
     try {
       await api.put(`/todos/${todo.id}`, { completed: !todo.completed })
-      fetchTodos()
     } catch (err: any) {
+      // Revert on failure
+      setTodos(previousTodos)
       alert('Failed to update: ' + err.message)
     }
   }
@@ -171,9 +179,10 @@ export default function Todos() {
                           className="text-gray-600 dark:text-gray-400 text-sm mt-1"
                       />
                   )}
-                  <p className="text-xs text-gray-400 mt-1">
-                    {new Date(todo.updated_at * 1000).toLocaleString()}
-                  </p>
+                  <div className="text-xs text-gray-400 mt-1 space-y-0.5">
+                    <p>Created: {new Date(todo.created_at * 1000).toLocaleString()}</p>
+                    <p>Updated: {new Date(todo.updated_at * 1000).toLocaleString()}</p>
+                  </div>
                 </div>
                 <button
                     onClick={() => handleDelete(todo.id)}
