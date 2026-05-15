@@ -4,8 +4,10 @@ import type { Contact } from '../../types'
 import { Plus, Trash2, Search, Phone, Mail, MapPin, Edit3 } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
+import {useConfirmation} from "../../context/ConfirmationContext.tsx";
 
 export default function Contacts() {
+  const { confirm } = useConfirmation()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -83,7 +85,8 @@ export default function Contacts() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this contact?')) return
+    const ok = await confirm('Delete this contact?')
+    if (!ok) return
     try {
       await api.delete(`/contacts/${id}`)
       fetchContacts()

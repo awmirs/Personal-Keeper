@@ -67,3 +67,13 @@ pub async fn update_note(
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }
+
+pub async fn delete_note(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> impl Responder {
+    match data.notes_repo.delete(&path.into_inner()).await {
+        Ok(()) => HttpResponse::NoContent().finish(),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}

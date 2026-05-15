@@ -4,8 +4,10 @@ import type { Bookmark } from '../../types'
 import { Plus, Trash2, Search, ExternalLink, Edit3 } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
+import { useConfirmation } from '../../context/ConfirmationContext';
 
 export default function Bookmarks() {
+  const { confirm } = useConfirmation()
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,7 +59,8 @@ export default function Bookmarks() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this bookmark?')) return
+    const ok = await confirm('Delete this bookmark?')
+    if (!ok) return
     try {
       await api.delete(`/bookmarks/${id}`)
       fetchBookmarks()

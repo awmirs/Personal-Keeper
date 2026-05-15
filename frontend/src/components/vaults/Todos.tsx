@@ -4,8 +4,10 @@ import type { Todo } from '../../types'
 import { Plus, Trash2, Search, CheckCircle, Circle } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
+import {useConfirmation} from "../../context/ConfirmationContext.tsx";
 
 export default function Todos() {
+  const { confirm } = useConfirmation()
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +67,8 @@ export default function Todos() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this todo?')) return
+    const ok = await confirm('Delete this todo?')
+    if (!ok) return
     try {
       await api.delete(`/todos/${id}`)
       fetchTodos()

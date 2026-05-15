@@ -7,8 +7,10 @@ import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Plus, Trash2, Search, Edit3 } from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
+import {useConfirmation} from "../../context/ConfirmationContext.tsx";
 
 export default function Notes() {
+    const { confirm } = useConfirmation()
     const [notes, setNotes] = useState<Note[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -68,7 +70,8 @@ export default function Notes() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this note?')) return
+        const ok = await confirm('Delete this note?')
+        if (!ok) return
         try {
             await api.delete(`/notes/${id}`)
             fetchNotes()

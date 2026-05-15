@@ -3,6 +3,7 @@ import api from '../../lib/api'
 import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
+import {useConfirmation} from "../../context/ConfirmationContext.tsx";
 
 type CredentialEntry = {
     id: string
@@ -28,6 +29,7 @@ type CredentialDetail = CredentialEntry & {
 }
 
 export default function Credentials() {
+    const { confirm } = useConfirmation()
     // Lock/unlock state
     const [masterPassword, setMasterPassword] = useState('')
     const [unlockError, setUnlockError] = useState('')
@@ -133,7 +135,8 @@ export default function Credentials() {
 
     // Delete
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this credential?')) return
+        const ok = await confirm('Delete this credential?')
+        if (!ok) return
         try {
             await api.delete(`/credentials/${id}`)
             if (selectedId === id) {

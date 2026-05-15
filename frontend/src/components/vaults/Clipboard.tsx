@@ -4,8 +4,10 @@ import type { ClipboardItem } from '../../types'
 import { Plus, Trash2, Copy, Search, Check } from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
 import AutoDirText from "../AutoDirText.tsx";
+import {useConfirmation} from "../../context/ConfirmationContext.tsx";
 
 export default function Clipboard() {
+  const { confirm } = useConfirmation()
   const [items, setItems] = useState<ClipboardItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -44,7 +46,8 @@ export default function Clipboard() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this snippet?')) return
+    const ok = await confirm('Delete this snippet?')
+    if (!ok) return
     try {
       await api.delete(`/clipboard/${id}`)
       fetchItems()

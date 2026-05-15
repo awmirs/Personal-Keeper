@@ -92,6 +92,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/notes", web::post().to(routes::notes::create_note))
                     .route("/notes", web::get().to(routes::notes::list_notes))
                     .route("/notes/{id}", web::put().to(routes::notes::update_note))
+                    .route("/notes/{id}", web::delete().to(routes::notes::delete_note))
                     .route("/clipboard", web::post().to(routes::clipboard::create_clipboard))
                     .route("/clipboard", web::get().to(routes::clipboard::list_clipboard))
                     .route("/clipboard/{id}", web::delete().to(routes::clipboard::delete_clipboard))
