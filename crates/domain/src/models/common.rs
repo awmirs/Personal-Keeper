@@ -43,6 +43,7 @@ pub struct ItemMetadata {
     pub color: Option<ColorLabel>,
     pub is_favorite: bool,
     pub trash_status: TrashStatus,
+    pub position: f64, // Manual ordering position (lower = earlier in the list).
 }
 
 
@@ -60,6 +61,7 @@ impl Default for ItemMetadata {
             color: None,
             is_favorite: false,
             trash_status: TrashStatus::Active,
+            position: 0.0,
         }
     }
 }

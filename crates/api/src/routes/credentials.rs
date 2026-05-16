@@ -105,7 +105,12 @@ pub async fn create_credential(
         None => return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Vault locked" })),
     };
 
-    let cred = Credential {
+    let next_pos = match data.credential_repo.get_next_position().await {
+        Ok(p) => p,
+        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    };
+
+    let mut cred = Credential {
         meta: Default::default(),
         website: body.website.clone(),
         url: body.url.clone().unwrap_or_default(),
@@ -114,6 +119,7 @@ pub async fn create_credential(
         notes_encrypted: body.notes.as_ref().and_then(|n| encrypt_bytes(n.as_bytes(), &key).ok()),
         totp_secret_encrypted: body.totp_secret.as_ref().and_then(|t| encrypt_bytes(t.as_bytes(), &key).ok()),
     };
+    cred.meta.position = next_pos;
 
     match data.credential_repo.save(&cred).await {
         Ok(()) => HttpResponse::Created().json(&cred),
@@ -219,6 +225,35 @@ pub async fn update_credential(
 
     match data.credential_repo.save(&updated).await {
         Ok(()) => HttpResponse::Ok().json(&updated),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReorderRequest {
+    pub positions: Vec<PositionEntry>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct PositionEntry {
+    pub id: String,
+    pub position: f64,
+}
+
+pub async fn reorder_credentials(
+    data: web::Data<AppState>,
+    body: web::Json<ReorderRequest>,
+) -> impl Responder {
+    if get_key(&data).is_none() {
+        return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Vault locked" }));
+    }
+    let positions: Vec<(uuid::Uuid, f64)> = body
+        .positions
+        .iter()
+        .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
+        .collect();
+    match data.credential_repo.update_positions(&positions).await {
+        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }

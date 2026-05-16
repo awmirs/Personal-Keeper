@@ -14,7 +14,11 @@ pub async fn create_bookmark(
     data: web::Data<AppState>,
     body: web::Json<CreateBookmarkRequest>,
 ) -> impl Responder {
-    let bookmark = Bookmark {
+    let next_pos = match data.bookmark_repo.get_next_position().await {
+        Ok(p) => p,
+        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    };
+    let mut bookmark = Bookmark {
         meta: Default::default(),
         url: body.url.clone(),
         title: body.title.clone().unwrap_or_default(),
@@ -22,6 +26,7 @@ pub async fn create_bookmark(
         favicon: None,
         thumbnail: None,
     };
+    bookmark.meta.position = next_pos;
     match data.bookmark_repo.save(&bookmark).await {
         Ok(()) => HttpResponse::Created().json(&bookmark),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
@@ -93,6 +98,32 @@ pub async fn update_bookmark(
 
     match data.bookmark_repo.save(&updated).await {
         Ok(()) => HttpResponse::Ok().json(&updated),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReorderRequest {
+    pub positions: Vec<PositionEntry>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct PositionEntry {
+    pub id: String,
+    pub position: f64,
+}
+
+pub async fn reorder_bookmarks(
+    data: web::Data<AppState>,
+    body: web::Json<ReorderRequest>,
+) -> impl Responder {
+    let positions: Vec<(uuid::Uuid, f64)> = body
+        .positions
+        .iter()
+        .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
+        .collect();
+    match data.bookmark_repo.update_positions(&positions).await {
+        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }

@@ -16,7 +16,11 @@ pub async fn create_contact(
     data: web::Data<AppState>,
     body: web::Json<CreateContactRequest>,
 ) -> impl Responder {
-    let contact = Contact {
+    let next_pos = match data.contact_repo.get_next_position().await {
+        Ok(p) => p,
+        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    };
+    let mut contact = Contact {
         meta: Default::default(),
         name: body.name.clone(),
         phones: body.phones.clone().unwrap_or_default(),
@@ -24,6 +28,7 @@ pub async fn create_contact(
         addresses: body.addresses.clone().unwrap_or_default(),
         notes: body.notes.clone().unwrap_or_default(),
     };
+    contact.meta.position = next_pos;
     match data.contact_repo.save(&contact).await {
         Ok(()) => HttpResponse::Created().json(&contact),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
@@ -96,6 +101,32 @@ pub async fn update_contact(
 
     match data.contact_repo.save(&updated).await {
         Ok(()) => HttpResponse::Ok().json(&updated),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReorderRequest {
+    pub positions: Vec<PositionEntry>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct PositionEntry {
+    pub id: String,
+    pub position: f64,
+}
+
+pub async fn reorder_contacts(
+    data: web::Data<AppState>,
+    body: web::Json<ReorderRequest>,
+) -> impl Responder {
+    let positions: Vec<(uuid::Uuid, f64)> = body
+        .positions
+        .iter()
+        .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
+        .collect();
+    match data.contact_repo.update_positions(&positions).await {
+        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }

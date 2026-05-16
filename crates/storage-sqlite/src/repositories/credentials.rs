@@ -16,6 +16,42 @@ impl CredentialRepository {
     pub fn new(pool: Arc<Pool<SqliteConnectionManager>>) -> Self {
         Self { pool }
     }
+
+    /// Returns the next available position for a new credential.
+    pub async fn get_next_position(&self) -> Result<f64, CoreError> {
+        let pool = Arc::clone(&self.pool);
+        tokio::task::spawn_blocking(move || {
+            let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
+            let mut stmt = conn.prepare("SELECT COALESCE(MAX(position), -1.0) + 1.0 FROM credentials")
+                .map_err(|e| CoreError::Storage(e.to_string()))?;
+            let pos: f64 = stmt.query_row([], |row| row.get(0))
+                .map_err(|e| CoreError::Storage(e.to_string()))?;
+            Ok(pos)
+        })
+            .await
+            .map_err(|e| CoreError::Internal(e.to_string()))?
+    }
+
+    /// Updates positions for multiple credentials in a single transaction.
+    pub async fn update_positions(&self, positions: &[(uuid::Uuid, f64)]) -> Result<(), CoreError> {
+        let pool = Arc::clone(&self.pool);
+        let updates: Vec<(String, f64)> = positions.iter().map(|(id, pos)| (id.to_string(), *pos)).collect();
+        tokio::task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
+            let tx = conn.transaction().map_err(|e| CoreError::Storage(e.to_string()))?;
+            for (id, pos) in &updates {
+                tx.execute(
+                    "UPDATE credentials SET position = ?1, updated_at = ?2 WHERE id = ?3",
+                    rusqlite::params![pos, chrono::Utc::now().timestamp(), id],
+                )
+                    .map_err(|e| CoreError::Storage(e.to_string()))?;
+            }
+            tx.commit().map_err(|e| CoreError::Storage(e.to_string()))?;
+            Ok(())
+        })
+            .await
+            .map_err(|e| CoreError::Internal(e.to_string()))?
+    }
 }
 
 /// Serialise an optional EncryptedData to JSON string.
@@ -43,6 +79,7 @@ fn row_to_credential(row: &rusqlite::Row) -> Result<Credential, rusqlite::Error>
     let trash_status_str: String = row.get(11)?;
     let created_at: i64 = row.get(12)?;
     let updated_at: i64 = row.get(13)?;
+    let position: f64 = row.get(14)?;
 
     let tags: Vec<Tag> = serde_json::from_str(&tags_json).unwrap_or_default();
     let color = match (color_name, color_hex) {
@@ -64,6 +101,7 @@ fn row_to_credential(row: &rusqlite::Row) -> Result<Credential, rusqlite::Error>
             color,
             is_favorite,
             trash_status,
+            position,
         },
         website,
         url,
@@ -83,8 +121,8 @@ impl Repository<Credential> for CredentialRepository {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             conn.execute(
                 "INSERT OR REPLACE INTO credentials
-                 (id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                 (id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     item.meta.id.to_string(),
                     item.website,
@@ -100,6 +138,7 @@ impl Repository<Credential> for CredentialRepository {
                     format!("{:?}", item.meta.trash_status),
                     item.meta.created_at,
                     item.meta.updated_at,
+                    item.meta.position,
                 ],
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
@@ -115,7 +154,7 @@ impl Repository<Credential> for CredentialRepository {
         tokio::task::spawn_blocking(move || -> Result<Option<Credential>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at
+                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
                  FROM credentials WHERE id = ?1"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
@@ -136,8 +175,8 @@ impl Repository<Credential> for CredentialRepository {
         tokio::task::spawn_blocking(move || -> Result<Vec<Credential>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at
-                 FROM credentials ORDER BY updated_at DESC"
+                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                 FROM credentials ORDER BY position ASC, id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let rows = stmt.query_map([], row_to_credential)
@@ -171,8 +210,8 @@ impl Repository<Credential> for CredentialRepository {
         tokio::task::spawn_blocking(move || -> Result<Vec<Credential>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at
-                 FROM credentials WHERE website LIKE ?1 OR url LIKE ?1 OR username LIKE ?1 ORDER BY updated_at DESC"
+                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                 FROM credentials WHERE website LIKE ?1 OR url LIKE ?1 OR username LIKE ?1 ORDER BY position ASC, id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let rows = stmt.query_map(params![query], row_to_credential)

@@ -14,13 +14,18 @@ pub async fn create_todo(
     data: web::Data<AppState>,
     body: web::Json<CreateTodoRequest>,
 ) -> impl Responder {
-    let todo = Todo {
+    let next_pos = match data.todo_repo.get_next_position().await {
+        Ok(p) => p,
+        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    };
+    let mut todo = Todo {
         meta: Default::default(),
         title: body.title.clone(),
         description: body.description.clone().unwrap_or_default(),
         completed: false,
         due_date: body.due_date,
     };
+    todo.meta.position = next_pos;
     match data.todo_repo.save(&todo).await {
         Ok(()) => HttpResponse::Created().json(&todo),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
@@ -92,6 +97,32 @@ pub async fn delete_todo(
 ) -> impl Responder {
     match data.todo_repo.delete(&path.into_inner()).await {
         Ok(()) => HttpResponse::NoContent().finish(),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReorderRequest {
+    pub positions: Vec<PositionEntry>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct PositionEntry {
+    pub id: String,
+    pub position: f64,
+}
+
+pub async fn reorder_todos(
+    data: web::Data<AppState>,
+    body: web::Json<ReorderRequest>,
+) -> impl Responder {
+    let positions: Vec<(uuid::Uuid, f64)> = body
+        .positions
+        .iter()
+        .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
+        .collect();
+    match data.todo_repo.update_positions(&positions).await {
+        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }
