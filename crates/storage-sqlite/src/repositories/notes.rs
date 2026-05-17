@@ -4,7 +4,6 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use std::sync::Arc;
 use domain::error::CoreError;
-use domain::models::common::{ColorLabel, ItemMetadata, Tag, TrashStatus};
 use domain::models::note::Note;
 use domain::traits::repository::Repository;
 
@@ -16,80 +15,21 @@ impl NoteRepository {
     pub fn new(pool: Arc<Pool<SqliteConnectionManager>>) -> Self {
         Self { pool }
     }
-    /// Returns the next available position for a new note.
-    pub async fn get_next_position(&self) -> Result<f64, CoreError> {
-        let pool = Arc::clone(&self.pool);
-        tokio::task::spawn_blocking(move || {
-            let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT COALESCE(MAX(position), -1.0) + 1.0 FROM notes")
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let pos: f64 = stmt.query_row([], |row| row.get(0))
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            Ok(pos)
-        })
-            .await
-            .map_err(|e| CoreError::Internal(e.to_string()))?
-    }
-
-    /// Updates positions for multiple notes in a single transaction.
-    pub async fn update_positions(&self, positions: &[(uuid::Uuid, f64)]) -> Result<(), CoreError> {
-        let pool = Arc::clone(&self.pool);
-        let updates: Vec<(String, f64)> = positions.iter().map(|(id, pos)| (id.to_string(), *pos)).collect();
-        tokio::task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let tx = conn.transaction().map_err(|e| CoreError::Storage(e.to_string()))?;
-            for (id, pos) in &updates {
-                tx.execute(
-                    "UPDATE notes SET position = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![pos, chrono::Utc::now().timestamp(), id],
-                )
-                    .map_err(|e| CoreError::Storage(e.to_string()))?;
-            }
-            tx.commit().map_err(|e| CoreError::Storage(e.to_string()))?;
-            Ok(())
-        })
-            .await
-            .map_err(|e| CoreError::Internal(e.to_string()))?
-    }
+    // Generated position helpers
+    crate::repositories::helpers::impl_position_helpers!("notes");
 }
 
-// Helper to map a row into a Note
+use super::helpers::parse_item_metadata;
+
 fn row_to_note(row: &rusqlite::Row) -> Result<Note, rusqlite::Error> {
-    let id: String = row.get(0)?;
     let title: String = row.get(1)?;
     let content: String = row.get(2)?;
     let is_pinned: bool = row.get::<_, i32>(3)? != 0;
-    let tags_json: String = row.get(4)?;
-    let color_name: Option<String> = row.get(5)?;
-    let color_hex: Option<String> = row.get(6)?;
-    let is_favorite: bool = row.get::<_, i32>(7)? != 0;
-    let trash_status_str: String = row.get(8)?;
-    let created_at: i64 = row.get(9)?;
-    let updated_at: i64 = row.get(10)?;
-    let position: f64 = row.get(11)?;
 
-    let tags: Vec<Tag> = serde_json::from_str(&tags_json).unwrap_or_default();
-    let color = match (color_name, color_hex) {
-        (Some(name), Some(hex)) => Some(ColorLabel { name, hex }),
-        _ => None,
-    };
-    let trash_status = match trash_status_str.as_str() {
-        "Trashed" => TrashStatus::Trashed,
-        "Deleted" => TrashStatus::Deleted,
-        _ => TrashStatus::Active,
-    };
+    let meta = parse_item_metadata(row, 4)?; // tags is at column 4
 
     Ok(Note {
-        meta: ItemMetadata {
-            id: uuid::Uuid::parse_str(&id).map_err(|_| rusqlite::Error::InvalidQuery)?,
-            created_at,
-            updated_at,
-            tags,
-            color,
-            is_favorite,
-            trash_status,
-            position,
-        },
+        meta,
         title,
         content,
         is_pinned,

@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use domain::error::CoreError;
 use domain::models::credential::{Credential, EncryptedData};
-use domain::models::common::{ColorLabel, ItemMetadata, Tag, TrashStatus};
 use domain::traits::repository::Repository;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -17,41 +16,7 @@ impl CredentialRepository {
         Self { pool }
     }
 
-    /// Returns the next available position for a new credential.
-    pub async fn get_next_position(&self) -> Result<f64, CoreError> {
-        let pool = Arc::clone(&self.pool);
-        tokio::task::spawn_blocking(move || {
-            let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT COALESCE(MAX(position), -1.0) + 1.0 FROM credentials")
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let pos: f64 = stmt.query_row([], |row| row.get(0))
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            Ok(pos)
-        })
-            .await
-            .map_err(|e| CoreError::Internal(e.to_string()))?
-    }
-
-    /// Updates positions for multiple credentials in a single transaction.
-    pub async fn update_positions(&self, positions: &[(uuid::Uuid, f64)]) -> Result<(), CoreError> {
-        let pool = Arc::clone(&self.pool);
-        let updates: Vec<(String, f64)> = positions.iter().map(|(id, pos)| (id.to_string(), *pos)).collect();
-        tokio::task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let tx = conn.transaction().map_err(|e| CoreError::Storage(e.to_string()))?;
-            for (id, pos) in &updates {
-                tx.execute(
-                    "UPDATE credentials SET position = ?1, updated_at = ?2 WHERE id = ?3",
-                    rusqlite::params![pos, chrono::Utc::now().timestamp(), id],
-                )
-                    .map_err(|e| CoreError::Storage(e.to_string()))?;
-            }
-            tx.commit().map_err(|e| CoreError::Storage(e.to_string()))?;
-            Ok(())
-        })
-            .await
-            .map_err(|e| CoreError::Internal(e.to_string()))?
-    }
+    crate::repositories::helpers::impl_position_helpers!("credentials");
 }
 
 /// Serialise an optional EncryptedData to JSON string.
@@ -64,45 +29,20 @@ fn json_to_enc(s: &Option<String>) -> Option<EncryptedData> {
     s.as_ref().and_then(|js| serde_json::from_str(js).ok())
 }
 
+use super::helpers::parse_item_metadata;
+
 fn row_to_credential(row: &rusqlite::Row) -> Result<Credential, rusqlite::Error> {
-    let id: String = row.get(0)?;
     let website: String = row.get(1)?;
     let url: String = row.get(2)?;
     let username: String = row.get(3)?;
     let password_json: Option<String> = row.get(4)?;
     let notes_json: Option<String> = row.get(5)?;
     let totp_json: Option<String> = row.get(6)?;
-    let tags_json: String = row.get(7)?;
-    let color_name: Option<String> = row.get(8)?;
-    let color_hex: Option<String> = row.get(9)?;
-    let is_favorite: bool = row.get::<_, i32>(10)? != 0;
-    let trash_status_str: String = row.get(11)?;
-    let created_at: i64 = row.get(12)?;
-    let updated_at: i64 = row.get(13)?;
-    let position: f64 = row.get(14)?;
 
-    let tags: Vec<Tag> = serde_json::from_str(&tags_json).unwrap_or_default();
-    let color = match (color_name, color_hex) {
-        (Some(name), Some(hex)) => Some(ColorLabel { name, hex }),
-        _ => None,
-    };
-    let trash_status = match trash_status_str.as_str() {
-        "Trashed" => TrashStatus::Trashed,
-        "Deleted" => TrashStatus::Deleted,
-        _ => TrashStatus::Active,
-    };
+    let meta = parse_item_metadata(row, 7)?;   // tags column is 7
 
     Ok(Credential {
-        meta: ItemMetadata {
-            id: uuid::Uuid::parse_str(&id).map_err(|_| rusqlite::Error::InvalidQuery)?,
-            created_at,
-            updated_at,
-            tags,
-            color,
-            is_favorite,
-            trash_status,
-            position,
-        },
+        meta,
         website,
         url,
         username,

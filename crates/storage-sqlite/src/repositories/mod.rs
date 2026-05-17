@@ -1,3 +1,4 @@
+pub mod helpers;
 pub mod notes;
 pub mod clipboard;
 pub mod users;
