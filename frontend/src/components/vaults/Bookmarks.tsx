@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import api from '../../lib/api'
+import api, { reorderVault } from '../../lib/api'
 import type { Bookmark } from '../../types'
-import { Plus, Trash2, Search, ExternalLink, Edit3 } from 'lucide-react'
+import { Plus, Trash2, Search, ExternalLink, Edit3, ChevronUp, ChevronDown } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import { useConfirmation } from '../../context/ConfirmationContext';
@@ -18,6 +18,7 @@ export default function Bookmarks() {
   const [newUrl, setNewUrl] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
+  const [editOrder, setEditOrder] = useState(false)
 
   const fetchBookmarks = useCallback(async () => {
     try {
@@ -67,6 +68,35 @@ export default function Bookmarks() {
     } catch (err: any) { alert('Failed to delete: ' + err.message) }
   }
 
+  const moveBookmark = async (index: number, direction: 'up' | 'down') => {
+    const newBookmarks = [...bookmarks]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= newBookmarks.length) return
+
+    const itemA = newBookmarks[index]
+    const itemB = newBookmarks[targetIndex]
+
+    ;[newBookmarks[index], newBookmarks[targetIndex]] = [newBookmarks[targetIndex], newBookmarks[index]]
+
+    const tempPos = itemA.position
+    itemA.position = itemB.position
+    itemB.position = tempPos
+
+    newBookmarks.sort((a, b) => a.position - b.position)
+
+    setBookmarks(newBookmarks)
+
+    try {
+      await reorderVault('bookmarks', [
+        { id: itemA.id, position: itemA.position },
+        { id: itemB.id, position: itemB.position },
+      ])
+    } catch (err: any) {
+      fetchBookmarks()
+      alert('Failed to reorder: ' + (err.response?.data?.error || err.message))
+    }
+  }
+
   const filtered = bookmarks.filter(b =>
       b.url.toLowerCase().includes(search.toLowerCase()) ||
       b.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -77,9 +107,19 @@ export default function Bookmarks() {
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold dark:text-white">Bookmarks</h2>
-          <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-            <Plus size={18} /> Add Bookmark
-          </button>
+          <div className="flex gap-2">
+            <button
+                onClick={() => setEditOrder(!editOrder)}
+                className={`flex items-center gap-2 rounded px-4 py-2 ${
+                    editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+            >
+              {editOrder ? 'Done' : 'Edit Order'}
+            </button>
+            <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+              <Plus size={18} /> Add Bookmark
+            </button>
+          </div>
         </div>
 
         <div className="relative mb-4">
@@ -104,7 +144,7 @@ export default function Bookmarks() {
         {!loading && !error && filtered.length === 0 && <p className="text-gray-500">No bookmarks found.</p>}
 
         <div className="space-y-3">
-          {filtered.map(b => (
+          {filtered.map((b, index) => (
               <div key={b.id} className="rounded bg-white p-4 shadow dark:bg-gray-800 group flex items-start gap-3">
                 {editingId === b.id ? (
                     <div className="flex-1 space-y-2">
@@ -118,18 +158,40 @@ export default function Bookmarks() {
                     </div>
                 ) : (
                     <>
-                      <div className="flex-1 min-w-0">
-                        <a href={b.url} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-                          {b.title || b.url} <ExternalLink size={16} />
-                        </a>
-                        <hr className="my-2 border-gray-200 dark:border-gray-700" />
-                        {b.description && <AutoDirText text={b.description} as="p" className="text-gray-600 dark:text-gray-400 text-sm mt-1" />}
-                        <p className="text-xs text-gray-400 mt-1">{new Date(b.updated_at * 1000).toLocaleString()}</p>
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => startEdit(b)} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
-                        <button onClick={() => handleDelete(b.id)} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
-                      </div>
+                        <div className="flex-1 min-w-0">
+                          <a href={b.url} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                            {b.title || b.url} <ExternalLink size={16} />
+                          </a>
+                          <hr className="my-2 border-gray-200 dark:border-gray-700" />
+                          {b.description && <AutoDirText text={b.description} as="p" className="text-gray-600 dark:text-gray-400 text-sm mt-1" />}
+                          <p className="text-xs text-gray-400 mt-1">{new Date(b.updated_at * 1000).toLocaleString()}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {editOrder && (
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                    onClick={() => moveBookmark(index, 'up')}
+                                    disabled={index === 0}
+                                    className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                                    title="Move up"
+                                >
+                                  <ChevronUp size={18} />
+                                </button>
+                                <button
+                                    onClick={() => moveBookmark(index, 'down')}
+                                    disabled={index === filtered.length - 1}
+                                    className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                                    title="Move down"
+                                >
+                                  <ChevronDown size={18} />
+                                </button>
+                              </div>
+                          )}
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                            <button onClick={() => startEdit(b)} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
+                            <button onClick={() => handleDelete(b.id)} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
+                          </div>
+                        </div>
                     </>
                 )}
               </div>

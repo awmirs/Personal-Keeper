@@ -6,6 +6,7 @@ export interface ItemMetadata {
     color: ColorLabel | null
     is_favorite: boolean
     trash_status: 'Active' | 'Trashed' | 'Deleted'
+    position: number
 }
 
 export interface Tag {
@@ -27,6 +28,7 @@ export interface Note {
     color: ColorLabel | null
     is_favorite: boolean
     trash_status: 'Active' | 'Trashed' | 'Deleted'
+    position: number
     title: string
     content: string
     is_pinned: boolean
@@ -41,6 +43,7 @@ export interface ClipboardItem {
     color: ColorLabel | null
     is_favorite: boolean
     trash_status: 'Active' | 'Trashed' | 'Deleted'
+    position: number
     content: string
     persist_to_disk: boolean
 }
@@ -53,6 +56,7 @@ export interface Todo {
     color: ColorLabel | null
     is_favorite: boolean
     trash_status: 'Active' | 'Trashed' | 'Deleted'
+    position: number
     title: string
     description: string
     completed: boolean
@@ -67,6 +71,7 @@ export interface Bookmark {
     color: ColorLabel | null
     is_favorite: boolean
     trash_status: 'Active' | 'Trashed' | 'Deleted'
+    position: number
     url: string
     title: string
     description: string
@@ -82,6 +87,7 @@ export interface Contact {
     color: ColorLabel | null
     is_favorite: boolean
     trash_status: 'Active' | 'Trashed' | 'Deleted'
+    position: number
     name: string
     phones: string[]
     emails: string[]

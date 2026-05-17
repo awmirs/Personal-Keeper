@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import api from '../../lib/api'
+import api, { reorderVault } from '../../lib/api'
 import type { ClipboardItem } from '../../types'
-import { Plus, Trash2, Copy, Search, Check } from 'lucide-react'
+import { Plus, Trash2, Copy, Search, Check, ChevronUp, ChevronDown } from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
 import AutoDirText from "../AutoDirText.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -15,6 +15,7 @@ export default function Clipboard() {
   const [showCreate, setShowCreate] = useState(false)
   const [newContent, setNewContent] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [editOrder, setEditOrder] = useState(false)
 
   const fetchItems = useCallback(async () => {
     try {
@@ -42,6 +43,35 @@ export default function Clipboard() {
       fetchItems()
     } catch (err: any) {
       alert('Failed to create: ' + err.message)
+    }
+  }
+
+  const moveItem = async (index: number, direction: 'up' | 'down') => {
+    const newItems = [...items]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= newItems.length) return
+
+    const itemA = newItems[index]
+    const itemB = newItems[targetIndex]
+
+    ;[newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]]
+
+    const tempPos = itemA.position
+    itemA.position = itemB.position
+    itemB.position = tempPos
+
+    newItems.sort((a, b) => a.position - b.position)
+
+    setItems(newItems)
+
+    try {
+      await reorderVault('clipboard', [
+        { id: itemA.id, position: itemA.position },
+        { id: itemB.id, position: itemB.position },
+      ])
+    } catch (err: any) {
+      fetchItems()
+      alert('Failed to reorder: ' + (err.response?.data?.error || err.message))
     }
   }
 
@@ -82,13 +112,23 @@ export default function Clipboard() {
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold dark:text-white">Clipboard</h2>
-          <button
-              onClick={() => setShowCreate(!showCreate)}
-              className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
-            <Plus size={18} />
-            New Snippet
-          </button>
+          <div className="flex gap-2">
+            <button
+                onClick={() => setEditOrder(!editOrder)}
+                className={`flex items-center gap-2 rounded px-4 py-2 ${
+                    editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+            >
+              {editOrder ? 'Done' : 'Edit Order'}
+            </button>
+            <button
+                onClick={() => setShowCreate(!showCreate)}
+                className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              <Plus size={18} />
+              New Snippet
+            </button>
+          </div>
         </div>
 
         <div className="relative mb-4">
@@ -137,7 +177,7 @@ export default function Clipboard() {
         )}
 
         <div className="space-y-3">
-          {filtered.map((item) => (
+          {filtered.map((item, index) => (
               <div
                   key={item.id}
                   className="rounded bg-white p-4 shadow dark:bg-gray-800 group relative flex flex-col"
@@ -149,6 +189,26 @@ export default function Clipboard() {
                       as="div"
                   />
                   <div className="flex gap-2 ml-2">
+                    {editOrder && (
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                              onClick={() => moveItem(index, 'up')}
+                              disabled={index === 0}
+                              className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                              title="Move up"
+                          >
+                            <ChevronUp size={18} />
+                          </button>
+                          <button
+                              onClick={() => moveItem(index, 'down')}
+                              disabled={index === filtered.length - 1}
+                              className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                              title="Move down"
+                          >
+                            <ChevronDown size={18} />
+                          </button>
+                        </div>
+                    )}
                     <button
                         onClick={() => copyToClipboard(item.content, item.id)}
                         className="text-gray-400 hover:text-blue-500 transition p-1"

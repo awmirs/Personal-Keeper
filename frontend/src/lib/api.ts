@@ -95,3 +95,8 @@ api.interceptors.response.use(
 )
 
 export default api
+
+// Reorder helper: send new positions to the backend
+export async function reorderVault(vault: string, positions: { id: string; position: number }[]) {
+    return api.put(`/${vault}/reorder`, { positions })
+}

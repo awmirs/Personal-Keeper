@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import api from '../../lib/api'
+import api, { reorderVault } from '../../lib/api'
 import type { Todo } from '../../types'
-import { Plus, Trash2, Search, CheckCircle, Circle } from 'lucide-react'
+import { Plus, Trash2, Search, CheckCircle, Circle, ChevronUp, ChevronDown } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -15,6 +15,7 @@ export default function Todos() {
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
+  const [editOrder, setEditOrder] = useState(false)
 
   const fetchTodos = useCallback(async () => {
     try {
@@ -77,6 +78,35 @@ export default function Todos() {
     }
   }
 
+  const moveTodo = async (index: number, direction: 'up' | 'down') => {
+    const newTodos = [...todos]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= newTodos.length) return
+
+    const itemA = newTodos[index]
+    const itemB = newTodos[targetIndex]
+
+    ;[newTodos[index], newTodos[targetIndex]] = [newTodos[targetIndex], newTodos[index]]
+
+    const tempPos = itemA.position
+    itemA.position = itemB.position
+    itemB.position = tempPos
+
+    newTodos.sort((a, b) => a.position - b.position)
+
+    setTodos(newTodos)
+
+    try {
+      await reorderVault('todos', [
+        { id: itemA.id, position: itemA.position },
+        { id: itemB.id, position: itemB.position },
+      ])
+    } catch (err: any) {
+      fetchTodos()
+      alert('Failed to reorder: ' + (err.response?.data?.error || err.message))
+    }
+  }
+
   const filtered = todos.filter((todo) =>
       todo.title.toLowerCase().includes(search.toLowerCase()) ||
       todo.description.toLowerCase().includes(search.toLowerCase())
@@ -86,13 +116,23 @@ export default function Todos() {
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold dark:text-white">Todos</h2>
-          <button
-              onClick={() => setShowCreate(!showCreate)}
-              className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
-            <Plus size={18} />
-            New Todo
-          </button>
+          <div className="flex gap-2">
+            <button
+                onClick={() => setEditOrder(!editOrder)}
+                className={`flex items-center gap-2 rounded px-4 py-2 ${
+                    editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+            >
+              {editOrder ? 'Done' : 'Edit Order'}
+            </button>
+            <button
+                onClick={() => setShowCreate(!showCreate)}
+                className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              <Plus size={18} />
+              New Todo
+            </button>
+          </div>
         </div>
 
         <div className="relative mb-4">
@@ -148,7 +188,7 @@ export default function Todos() {
         )}
 
         <div className="space-y-2">
-          {filtered.map((todo) => (
+          {filtered.map((todo, index) => (
               <div
                   key={todo.id}
                   className={`rounded bg-white p-4 shadow dark:bg-gray-800 group flex items-start gap-3 ${
@@ -187,13 +227,35 @@ export default function Todos() {
                     <p>Updated: {new Date(todo.updated_at * 1000).toLocaleString()}</p>
                   </div>
                 </div>
-                <button
-                    onClick={() => handleDelete(todo.id)}
-                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1"
-                    title="Delete"
-                >
-                  <Trash2 size={20} />
-                </button>
+                <div className="flex items-start gap-1">
+                  {editOrder && (
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                            onClick={() => moveTodo(index, 'up')}
+                            disabled={index === 0}
+                            className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                            title="Move up"
+                        >
+                          <ChevronUp size={18} />
+                        </button>
+                        <button
+                            onClick={() => moveTodo(index, 'down')}
+                            disabled={index === filtered.length - 1}
+                            className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                            title="Move down"
+                        >
+                          <ChevronDown size={18} />
+                        </button>
+                      </div>
+                  )}
+                  <button
+                      onClick={() => handleDelete(todo.id)}
+                      className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1"
+                      title="Delete"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
           ))}
         </div>

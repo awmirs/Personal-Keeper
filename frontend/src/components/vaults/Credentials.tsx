@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import api from '../../lib/api'
-import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import api, { reorderVault } from '../../lib/api'
+import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -20,6 +20,7 @@ type CredentialEntry = {
     color: any
     is_favorite: boolean
     trash_status: string
+    position: number
 }
 
 type CredentialDetail = CredentialEntry & {
@@ -63,6 +64,7 @@ export default function Credentials() {
     const [detailLoading, setDetailLoading] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const [copiedField, setCopiedField] = useState<string | null>(null)
+    const [editOrder, setEditOrder] = useState(false)
     const [editing, setEditing] = useState(false)
     const [editForm, setEditForm] = useState({
         website: '',
@@ -146,6 +148,35 @@ export default function Credentials() {
             fetchCredentials()
         } catch (err: any) {
             alert('Failed to delete: ' + err.response?.data?.error || err.message)
+        }
+    }
+
+    const moveCredential = async (index: number, direction: 'up' | 'down') => {
+        const newCreds = [...credentials]
+        const targetIndex = direction === 'up' ? index - 1 : index + 1
+        if (targetIndex < 0 || targetIndex >= newCreds.length) return
+
+        const itemA = newCreds[index]
+        const itemB = newCreds[targetIndex]
+
+        ;[newCreds[index], newCreds[targetIndex]] = [newCreds[targetIndex], newCreds[index]]
+
+        const tempPos = itemA.position
+        itemA.position = itemB.position
+        itemB.position = tempPos
+
+        newCreds.sort((a, b) => a.position - b.position)
+
+        setCredentials(newCreds)
+
+        try {
+            await reorderVault('credentials', [
+                { id: itemA.id, position: itemA.position },
+                { id: itemB.id, position: itemB.position },
+            ])
+        } catch (err: any) {
+            fetchCredentials()
+            alert('Failed to reorder: ' + (err.response?.data?.error || err.message))
         }
     }
 
@@ -266,6 +297,14 @@ export default function Credentials() {
                 <h2 className="text-2xl font-bold dark:text-white">Credentials</h2>
                 <div className="flex gap-2">
                     <button
+                        onClick={() => setEditOrder(!editOrder)}
+                        className={`flex items-center gap-2 rounded px-4 py-2 ${
+                            editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                    >
+                        {editOrder ? 'Done' : 'Edit Order'}
+                    </button>
+                    <button
                         onClick={() => setShowCreate(!showCreate)}
                         className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
                     >
@@ -347,7 +386,7 @@ export default function Credentials() {
             {!loading && filtered.length === 0 && <p className="text-gray-500">No credentials.</p>}
 
             <div className="space-y-2">
-                {filtered.map(cred => (
+                {filtered.map((cred, index) => (
                     <div
                         key={cred.id}
                         className="rounded bg-white p-3 shadow dark:bg-gray-800 flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -357,12 +396,34 @@ export default function Credentials() {
                             <div className="font-semibold dark:text-white">{cred.website}</div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">{cred.username}</div>
                         </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleDelete(cred.id) }}
-                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                        >
-                            <Trash2 size={20} />
-                        </button>
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {editOrder && (
+                                <div className="flex flex-col gap-0.5">
+                                    <button
+                                        onClick={() => moveCredential(index, 'up')}
+                                        disabled={index === 0}
+                                        className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                                        title="Move up"
+                                    >
+                                        <ChevronUp size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => moveCredential(index, 'down')}
+                                        disabled={index === filtered.length - 1}
+                                        className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                                        title="Move down"
+                                    >
+                                        <ChevronDown size={18} />
+                                    </button>
+                                </div>
+                            )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete(cred.id) }}
+                                className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                            >
+                                <Trash2 size={20} />
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>
