@@ -4,6 +4,11 @@ import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check, ChevronUp, Chevro
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
+import { useViewStore } from '../../stores/viewStore'
+import ViewSwitcher from '../ViewSwitcher'
+import ListView from '../views/ListView'
+import GridView from '../views/GridView'
+import CompactListView from '../views/CompactListView'
 
 type CredentialEntry = {
     id: string
@@ -65,6 +70,7 @@ export default function Credentials() {
     const [showPassword, setShowPassword] = useState(false)
     const [copiedField, setCopiedField] = useState<string | null>(null)
     const [editOrder, setEditOrder] = useState(false)
+    const view = useViewStore((s) => s.views.credentials || 'list')
     const [editing, setEditing] = useState(false)
     const [editForm, setEditForm] = useState({
         website: '',
@@ -290,12 +296,56 @@ export default function Credentials() {
         )
     }
 
+    const renderCredential = (cred: CredentialEntry, index: number) => (
+        <div
+            key={cred.id}
+            className={`rounded bg-white p-3 shadow dark:bg-gray-800 flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                view === 'grid' ? 'h-24 overflow-hidden' : ''
+            }`}
+            onClick={() => fetchDetail(cred.id)}
+        >
+            <div className="flex-1 min-w-0">
+                <div className="font-semibold dark:text-white truncate">{cred.website}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{cred.username}</div>
+            </div>
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                {editOrder && (
+                    <div className="flex flex-col gap-0.5">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); moveCredential(index, 'up'); }}
+                            disabled={index === 0}
+                            className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                            title="Move up"
+                        >
+                            <ChevronUp size={18} />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); moveCredential(index, 'down'); }}
+                            disabled={index === filtered.length - 1}
+                            className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                            title="Move down"
+                        >
+                            <ChevronDown size={18} />
+                        </button>
+                    </div>
+                )}
+                <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(cred.id); }}
+                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                >
+                    <Trash2 size={20} />
+                </button>
+            </div>
+        </div>
+    );
+
     // Main unlocked view
     return (
         <div>
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold dark:text-white">Credentials</h2>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    <ViewSwitcher vaultKey="credentials" />
                     <button
                         onClick={() => setEditOrder(!editOrder)}
                         className={`flex items-center gap-2 rounded px-4 py-2 ${
@@ -385,48 +435,9 @@ export default function Credentials() {
             {loading && <LoadingSpinner message="Loading credentials..." />}
             {!loading && filtered.length === 0 && <p className="text-gray-500">No credentials.</p>}
 
-            <div className="space-y-2">
-                {filtered.map((cred, index) => (
-                    <div
-                        key={cred.id}
-                        className="rounded bg-white p-3 shadow dark:bg-gray-800 flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                        onClick={() => fetchDetail(cred.id)}
-                    >
-                        <div>
-                            <div className="font-semibold dark:text-white">{cred.website}</div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">{cred.username}</div>
-                        </div>
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            {editOrder && (
-                                <div className="flex flex-col gap-0.5">
-                                    <button
-                                        onClick={() => moveCredential(index, 'up')}
-                                        disabled={index === 0}
-                                        className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
-                                        title="Move up"
-                                    >
-                                        <ChevronUp size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => moveCredential(index, 'down')}
-                                        disabled={index === filtered.length - 1}
-                                        className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
-                                        title="Move down"
-                                    >
-                                        <ChevronDown size={18} />
-                                    </button>
-                                </div>
-                            )}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(cred.id) }}
-                                className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                            >
-                                <Trash2 size={20} />
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
+            {view === 'list' && <ListView items={filtered} renderItem={renderCredential} />}
+            {view === 'grid' && <GridView items={filtered} renderItem={renderCredential} />}
+            {view === 'compact' && <CompactListView items={filtered} renderItem={renderCredential} />}
 
             {/* Detail modal */}
             {selectedId && (

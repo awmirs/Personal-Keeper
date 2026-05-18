@@ -5,9 +5,14 @@ import ReactMarkdown from 'react-markdown'
 import { markdownComponents } from '../../lib/markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Plus, Trash2, Search, Edit3, ChevronUp, ChevronDown } from 'lucide-react'
+import {Plus, Trash2, Search, Edit3, ChevronUp, ChevronDown, X} from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
+import ViewSwitcher from "../ViewSwitcher.tsx";
+import {useViewStore} from "../../stores/viewStore.ts";
+import ListView from "../views/ListView.tsx";
+import GridView from "../views/GridView.tsx";
+import CompactListView from "../views/CompactListView.tsx";
 
 export default function Notes() {
     const { confirm } = useConfirmation()
@@ -21,6 +26,17 @@ export default function Notes() {
     const [newTitle, setNewTitle] = useState('')
     const [newContent, setNewContent] = useState('')
     const [editOrder, setEditOrder] = useState(false)
+    const [selectedNote, setSelectedNote] = useState<Note | null>(null)
+    const view = useViewStore((s) => s.views.notes || 'list')
+
+    const getPlainTextSnippet = (markdown: string, maxLen = 150) => {
+        const plain = markdown
+            .replace(/[#*`~_\[\]()>!\-|]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        if (plain.length <= maxLen) return plain
+        return plain.slice(0, maxLen).trimEnd() + '…'
+    }
 
     const fetchNotes = useCallback(async () => {
         try {
@@ -60,12 +76,19 @@ export default function Notes() {
     const cancelEdit = () => setEditingId(null)
 
     const handleUpdate = async (id: string) => {
+        const previousNotes = notes
+        setNotes((prev) =>
+            prev.map((n) =>
+                n.id === id
+                    ? { ...n, title: editForm.title, content: editForm.content, updated_at: Math.floor(Date.now() / 1000) }
+                    : n
+            )
+        )
+        setEditingId(null)
         try {
-            // No PUT endpoint for notes yet – add it in backend quickly (1 line)
             await api.put(`/notes/${id}`, editForm)
-            setEditingId(null)
-            fetchNotes()
         } catch (err: any) {
+            setNotes(previousNotes)
             alert('Failed to update: ' + err.message)
         }
     }
@@ -121,11 +144,113 @@ export default function Notes() {
             note.content.toLowerCase().includes(search.toLowerCase())
     )
 
+    const renderNote = (note: Note, index: number) => (
+        <div
+            key={note.id}
+            className={`rounded bg-white p-4 shadow dark:bg-gray-800 group relative ${
+                view === 'grid'
+                    ? 'h-64 overflow-hidden flex flex-col cursor-pointer'
+                    : ''
+            }`}
+            onClick={() => view === 'grid' && setSelectedNote(note)}
+        >
+            {editingId === note.id ? (
+                <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                    <input
+                        type="text"
+                        value={editForm.title}
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                        className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                    <textarea
+                        value={editForm.content}
+                        onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                        rows={5}
+                        className="w-full rounded border p-2 font-mono dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                    <div className="flex gap-2">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleUpdate(note.id); }}
+                            className="rounded bg-green-600 px-3 py-1 text-white"
+                        >
+                            Save
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); cancelEdit(); }}
+                            className="rounded bg-gray-300 px-3 py-1 dark:bg-gray-600 dark:text-white"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <div className="flex justify-between items-start">
+                        <h3 className="text-lg font-semibold dark:text-white mb-2">{note.title}</h3>
+                        <div className="flex items-center gap-1">
+                            {editOrder && (
+                                <div className="flex flex-col gap-0.5">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); moveNote(index, 'up'); }}
+                                        disabled={index === 0}
+                                        className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                                        title="Move up"
+                                    >
+                                        <ChevronUp size={18} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); moveNote(index, 'down'); }}
+                                        disabled={index === filteredNotes.length - 1}
+                                        className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
+                                        title="Move down"
+                                    >
+                                        <ChevronDown size={18} />
+                                    </button>
+                                </div>
+                            )}
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                <button onClick={(e) => { e.stopPropagation(); startEdit(note); }} className="text-gray-400 hover:text-blue-500 p-1">
+                                    <Edit3 size={20} />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDelete(note.id); }} className="text-gray-400 hover:text-red-500 p-1">
+                                    <Trash2 size={20} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <hr className="my-1 border-gray-200 dark:border-gray-700" />
+
+                    {view === 'grid' ? (
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">
+                                {getPlainTextSnippet(note.content, 150)}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="prose dark:prose-invert max-w-none text-gray-600 dark:text-gray-300">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeHighlight]}
+                                components={markdownComponents}
+                            >
+                                {note.content}
+                            </ReactMarkdown>
+                        </div>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">
+                        {new Date(note.updated_at * 1000).toLocaleString()}
+                    </p>
+                </>
+            )}
+        </div>
+    );
+
     return (
         <div>
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold dark:text-white">Notes</h2>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    <ViewSwitcher vaultKey="notes" />
                     <button
                         onClick={() => setEditOrder(!editOrder)}
                         className={`flex items-center gap-2 rounded px-4 py-2 ${
@@ -196,91 +321,45 @@ export default function Notes() {
                 <p className="text-gray-500">No notes found.</p>
             )}
 
-            <div className="space-y-4">
-                {filteredNotes.map((note, index) => (
-                    <div key={note.id} className="rounded bg-white p-4 shadow dark:bg-gray-800 group relative">
-                        {editingId === note.id ? (
-                            <div className="space-y-3">
-                                <input
-                                    type="text"
-                                    value={editForm.title}
-                                    onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                                    className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                />
-                                <textarea
-                                    value={editForm.content}
-                                    onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                                    rows={5}
-                                    className="w-full rounded border p-2 font-mono dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                />
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleUpdate(note.id)}
-                                        className="rounded bg-green-600 px-3 py-1 text-white"
-                                    >
-                                        Save
-                                    </button>
-                                    <button
-                                        onClick={cancelEdit}
-                                        className="rounded bg-gray-300 px-3 py-1 dark:bg-gray-600 dark:text-white"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="flex justify-between items-start">
-                                    <h3 className="text-lg font-semibold dark:text-white mb-2">{note.title}</h3>
-                                    <div className="flex items-center gap-1">
-                                        {editOrder && (
-                                            <div className="flex flex-col gap-0.5">
-                                                <button
-                                                    onClick={() => moveNote(index, 'up')}
-                                                    disabled={index === 0}
-                                                    className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
-                                                    title="Move up"
-                                                >
-                                                    <ChevronUp size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => moveNote(index, 'down')}
-                                                    disabled={index === filteredNotes.length - 1}
-                                                    className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
-                                                    title="Move down"
-                                                >
-                                                    <ChevronDown size={18} />
-                                                </button>
-                                            </div>
-                                        )}
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                                            <button onClick={() => startEdit(note)} className="text-gray-400 hover:text-blue-500 p-1">
-                                                <Edit3 size={20} />
-                                            </button>
-                                            <button onClick={() => handleDelete(note.id)} className="text-gray-400 hover:text-red-500 p-1">
-                                                <Trash2 size={20} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <hr className="my-1 border-gray-200 dark:border-gray-700" />
-                                <div className="prose dark:prose-invert max-w-none text-gray-600 dark:text-gray-300">
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm]}
-                                        rehypePlugins={[rehypeHighlight]}
-                                        components={markdownComponents}
-                                    >
-                                        {note.content}
-                                    </ReactMarkdown>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-2">
-                                    {new Date(note.updated_at * 1000).toLocaleString()}
-                                </p>
-                            </>
-                        )}
+            {view === 'list' && <ListView items={filteredNotes} renderItem={renderNote} />}
+            {view === 'grid' && <GridView items={filteredNotes} renderItem={renderNote} />}
+            {view === 'compact' && <CompactListView items={filteredNotes} renderItem={renderNote} />}
+
+
+            {/* Detail modal */}
+            {selectedNote && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+                    onClick={() => setSelectedNote(null)}
+                >
+                    <div
+                        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                            <h3 className="text-xl font-bold dark:text-white">{selectedNote.title}</h3>
+                            <button
+                                onClick={() => setSelectedNote(null)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 prose dark:prose-invert max-w-none">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeHighlight]}
+                                components={markdownComponents}
+                            >
+                                {selectedNote.content}
+                            </ReactMarkdown>
+                        </div>
+                        <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
+                            Last updated: {new Date(selectedNote.updated_at * 1000).toLocaleString()}
+                        </div>
                     </div>
-                ))}
-            </div>
+                </div>
+            )}
         </div>
     )
 }
