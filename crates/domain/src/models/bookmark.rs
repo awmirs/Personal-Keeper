@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use super::common::ItemMetadata;
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bookmark {
     #[serde(flatten)]

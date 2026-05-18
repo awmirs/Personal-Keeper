@@ -1,5 +1,6 @@
 mod routes;
 mod middleware;
+mod docs;
 
 use actix_web::{web, App, HttpServer};
 use actix_files::Files;
@@ -124,6 +125,10 @@ async fn main() -> std::io::Result<()> {
                     .route("/credentials/{id}", web::delete().to(routes::credentials::delete_credential)),
             )
             // --- SPA fallback (serve index.html for anything else) ---
+            .configure(|cfg| {
+                #[cfg(feature = "swagger")]
+                cfg.service(docs::swagger_ui_service());
+            })
             .service(Files::new("/", "./frontend/dist").index_file("index.html"))
     })
         .bind("0.0.0.0:8080")?

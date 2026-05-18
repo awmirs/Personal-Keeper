@@ -4,8 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+swagger = ["utoipa"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 thiserror = "2"
 async-trait = "0.1"
+
+utoipa = { version = "4", features = ["uuid"], optional = true }

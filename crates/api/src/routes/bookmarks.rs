@@ -3,6 +3,7 @@ use domain::models::bookmark::Bookmark;
 use domain::traits::repository::Repository;
 use crate::AppState;
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct CreateBookmarkRequest {
     pub url: String,
@@ -33,6 +34,7 @@ pub async fn create_bookmark(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct BookmarkQuery {
     pub search: Option<String>,
@@ -63,6 +65,7 @@ pub async fn delete_bookmark(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct UpdateBookmarkRequest {
     pub url: Option<String>,
@@ -102,11 +105,13 @@ pub async fn update_bookmark(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct ReorderRequest {
     pub positions: Vec<PositionEntry>,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct PositionEntry {
     pub id: String,

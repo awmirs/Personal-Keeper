@@ -3,6 +3,7 @@ use uuid::Uuid;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Status of an item in the recycler
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TrashStatus {
     Active,
@@ -11,6 +12,7 @@ pub enum TrashStatus {
 }
 
 /// A colour label for visual grouping
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ColorLabel {
     pub name: String,
@@ -18,6 +20,7 @@ pub struct ColorLabel {
 }
 
 /// A tag that can be attached to any item
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Tag {
     pub id: Uuid,
@@ -34,6 +37,7 @@ impl Tag {
 }
 
 /// Shared metadata across all vault items
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemMetadata {
     pub id: Uuid,

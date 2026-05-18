@@ -5,12 +5,14 @@ use crypto::jwt::Claims;
 
 use crate::AppState;
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct RegisterRequest {
     username: String,
     password: String,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Serialize)]
 pub struct AuthResponse {
     access_token: String,
@@ -48,6 +50,7 @@ pub async fn register(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct LoginRequest {
     username: String,
@@ -78,6 +81,7 @@ pub async fn login(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct RefreshRequest {
     refresh_token: String,
