@@ -1,4 +1,8 @@
 import type { Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeHighlight from 'rehype-highlight'
+import rehypeKatex from 'rehype-katex'
 
 /** Reusable Markdown components that apply dir="auto" to block elements. */
 export const markdownComponents: Partial<Components> = {
@@ -12,4 +16,11 @@ export const markdownComponents: Partial<Components> = {
     h5: (props) => <h5 dir="auto" {...props} />,
     h6: (props) => <h6 dir="auto" {...props} />,
     blockquote: (props) => <blockquote dir="auto" {...props} />,
+}
+
+/** Standard plugin configuration for all Markdown renderers. */
+export const markdownPlugins = {
+    remarkPlugins: [remarkGfm, remarkMath],
+    rehypePlugins: [rehypeHighlight, rehypeKatex],
+    components: markdownComponents,
 }

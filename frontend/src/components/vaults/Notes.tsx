@@ -2,9 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
 import type { Note } from '../../types'
 import ReactMarkdown from 'react-markdown'
-import { markdownComponents } from '../../lib/markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
+import { markdownPlugins } from '../../lib/markdown'
 import {Plus, Trash2, Search, Edit3, ChevronUp, ChevronDown, X} from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -29,15 +27,6 @@ export default function Notes() {
     const [selectedNote, setSelectedNote] = useState<Note | null>(null)
     const [editingInModal, setEditingInModal] = useState(false)
     const view = useViewStore((s) => s.views.notes || 'list')
-
-    const getPlainTextSnippet = (markdown: string, maxLen = 150) => {
-        const plain = markdown
-            .replace(/[#*`~_\[\]()>!\-|]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-        if (plain.length <= maxLen) return plain
-        return plain.slice(0, maxLen).trimEnd() + '…'
-    }
 
     const fetchNotes = useCallback(async () => {
         try {
@@ -240,18 +229,14 @@ export default function Notes() {
                     </div>
                     <hr className="my-1 border-gray-200 dark:border-gray-700" />
                     {view === 'grid' ? (
-                        <div className="flex-1 overflow-hidden">
-                            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">
-                                {getPlainTextSnippet(note.content, 150)}
-                            </p>
+                        <div className="flex-1 overflow-hidden prose prose-sm dark:prose-invert max-w-none">
+                            <ReactMarkdown {...markdownPlugins}>
+                                {note.content}
+                            </ReactMarkdown>
                         </div>
                     ) : (
                         <div className="prose dark:prose-invert max-w-none text-gray-600 dark:text-gray-300">
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeHighlight]}
-                                components={markdownComponents}
-                            >
+                            <ReactMarkdown {...markdownPlugins}>
                                 {note.content}
                             </ReactMarkdown>
                         </div>
@@ -411,11 +396,7 @@ export default function Notes() {
                                     </button>
                                 </div>
                                 <div className="p-6 prose dark:prose-invert max-w-none">
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm]}
-                                        rehypePlugins={[rehypeHighlight]}
-                                        components={markdownComponents}
-                                    >
+                                    <ReactMarkdown {...markdownPlugins}>
                                         {selectedNote.content}
                                     </ReactMarkdown>
                                 </div>
