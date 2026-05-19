@@ -1,4 +1,14 @@
-@import 'highlight.js/styles/github-dark.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Remove Tailwind Typography's forced <pre> background so highlight.js themes shine through */
+.prose pre {
+    background-color: transparent;
+    padding: 0;
+    border: 1px solid #e5e7eb;          /* gray-200 for light mode */
+}
+
+.dark .prose pre {
+    border-color: #374151;              /* gray-700 for dark mode */
+}
