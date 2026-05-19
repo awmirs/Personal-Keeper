@@ -8,6 +8,7 @@ import Todos from './components/vaults/Todos'
 import Bookmarks from './components/vaults/Bookmarks'
 import Contacts from './components/vaults/Contacts'
 import Credentials from './components/vaults/Credentials'
+import Settings from './components/Settings'
 import {useEffect} from "react";
 import api from "./lib/api.ts";
 
@@ -44,6 +45,7 @@ export default function App() {
                     <Route path="bookmarks" element={<Bookmarks />} />
                     <Route path="contacts" element={<Contacts />} />
                     <Route path="credentials" element={<Credentials />} />
+                    <Route path="settings" element={<Settings />} />
                 </Route>
             </Routes>
         </BrowserRouter>

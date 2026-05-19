@@ -1,35 +1,12 @@
 import { useState, useEffect } from 'react'
 import {Outlet, Link, useNavigate, useLocation} from 'react-router-dom'
 import { useAuthStore } from '../../lib/auth'
-import { Sun, Moon, Search, Menu, X } from 'lucide-react'
+import { Search, Menu, X, Settings } from 'lucide-react'
 import GlobalSearch from '../GlobalSearch'
 
 export default function Layout() {
     const navigate = useNavigate()
     const logout = useAuthStore((s) => s.logout)
-
-    // Dark mode state
-    const [dark, setDark] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('theme')
-            if (stored === 'dark') return true
-            if (stored === 'light') return false
-            return window.matchMedia('(prefers-color-scheme: dark)').matches
-        }
-        return false
-    })
-
-    // Apply dark class to <html> on mount and when toggled
-    useEffect(() => {
-        const root = document.documentElement
-        if (dark) {
-            root.classList.add('dark')
-            localStorage.setItem('theme', 'dark')
-        } else {
-            root.classList.remove('dark')
-            localStorage.setItem('theme', 'light')
-        }
-    }, [dark])
 
     useEffect(() => {
         const down = (e: KeyboardEvent) => {
@@ -132,13 +109,20 @@ export default function Layout() {
                     </nav>
 
                     <div className="space-y-2 mt-auto">
-                        <button
-                            onClick={() => setDark(!dark)}
-                            className="flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        <Link
+                            to="/settings"
+                            className={`flex items-center gap-2 w-full py-2 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                                location.pathname === '/settings' ? 'bg-gray-200 dark:bg-gray-700 font-semibold' : ''
+                            }`}
+                            onClick={() => {
+                                if (!window.matchMedia('(min-width: 1024px)').matches) {
+                                    setSidebarOpen(false)
+                                }
+                            }}
                         >
-                            {dark ? <Sun size={18} /> : <Moon size={18} />}
-                            {dark ? 'Light Mode' : 'Dark Mode'}
-                        </button>
+                            <Settings size={18} />
+                            Settings
+                        </Link>
                         <button
                             onClick={handleLogout}
                             className="flex items-center gap-2 w-full py-2 px-3 rounded text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50"
