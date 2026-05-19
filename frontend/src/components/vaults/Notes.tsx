@@ -27,6 +27,7 @@ export default function Notes() {
     const [newContent, setNewContent] = useState('')
     const [editOrder, setEditOrder] = useState(false)
     const [selectedNote, setSelectedNote] = useState<Note | null>(null)
+    const [editingInModal, setEditingInModal] = useState(false)
     const view = useViewStore((s) => s.views.notes || 'list')
 
     const getPlainTextSnippet = (markdown: string, maxLen = 150) => {
@@ -71,6 +72,12 @@ export default function Notes() {
     const startEdit = (note: Note) => {
         setEditingId(note.id)
         setEditForm({ title: note.title, content: note.content })
+    }
+
+    const startEditInModal = (note: Note) => {
+        setSelectedNote(note)
+        setEditForm({ title: note.title, content: note.content })
+        setEditingInModal(true)
     }
 
     const cancelEdit = () => setEditingId(null)
@@ -152,9 +159,12 @@ export default function Notes() {
                     ? 'h-64 overflow-hidden flex flex-col cursor-pointer'
                     : ''
             }`}
-            onClick={() => view === 'grid' && setSelectedNote(note)}
+            onClick={() => {
+                if (view === 'grid') setSelectedNote(note);
+            }}
         >
             {editingId === note.id ? (
+                // Inline editing for non-grid views
                 <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="text"
@@ -209,7 +219,17 @@ export default function Notes() {
                                 </div>
                             )}
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                                <button onClick={(e) => { e.stopPropagation(); startEdit(note); }} className="text-gray-400 hover:text-blue-500 p-1">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (view === 'grid') {
+                                            startEditInModal(note);
+                                        } else {
+                                            startEdit(note);
+                                        }
+                                    }}
+                                    className="text-gray-400 hover:text-blue-500 p-1"
+                                >
                                     <Edit3 size={20} />
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); handleDelete(note.id); }} className="text-gray-400 hover:text-red-500 p-1">
@@ -219,7 +239,6 @@ export default function Notes() {
                         </div>
                     </div>
                     <hr className="my-1 border-gray-200 dark:border-gray-700" />
-
                     {view === 'grid' ? (
                         <div className="flex-1 overflow-hidden">
                             <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">
@@ -330,33 +349,81 @@ export default function Notes() {
             {selectedNote && (
                 <div
                     className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                    onClick={() => setSelectedNote(null)}
+                    onClick={() => { setSelectedNote(null); setEditingInModal(false); }}
                 >
                     <div
                         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                            <h3 className="text-xl font-bold dark:text-white">{selectedNote.title}</h3>
-                            <button
-                                onClick={() => setSelectedNote(null)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="p-6 prose dark:prose-invert max-w-none">
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeHighlight]}
-                                components={markdownComponents}
-                            >
-                                {selectedNote.content}
-                            </ReactMarkdown>
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
-                            Last updated: {new Date(selectedNote.updated_at * 1000).toLocaleString()}
-                        </div>
+                        {editingInModal ? (
+                            <>
+                                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 className="text-xl font-bold dark:text-white">Edit Note</h3>
+                                    <button
+                                        onClick={() => { setEditingInModal(false); }}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="p-6 space-y-3">
+                                    <input
+                                        type="text"
+                                        value={editForm.title}
+                                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                                        className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                    <textarea
+                                        value={editForm.content}
+                                        onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                                        rows={12}
+                                        className="w-full rounded border p-2 font-mono dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                handleUpdate(selectedNote.id);
+                                                setEditingInModal(false);
+                                                setSelectedNote(null); // optionally close modal after save
+                                            }}
+                                            className="rounded bg-green-600 px-4 py-2 text-white"
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            onClick={() => { setSelectedNote(null); setEditingInModal(false); }}
+                                            className="rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 className="text-xl font-bold dark:text-white">{selectedNote.title}</h3>
+                                    <button
+                                        onClick={() => setSelectedNote(null)}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="p-6 prose dark:prose-invert max-w-none">
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        rehypePlugins={[rehypeHighlight]}
+                                        components={markdownComponents}
+                                    >
+                                        {selectedNote.content}
+                                    </ReactMarkdown>
+                                </div>
+                                <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
+                                    Last updated: {new Date(selectedNote.updated_at * 1000).toLocaleString()}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

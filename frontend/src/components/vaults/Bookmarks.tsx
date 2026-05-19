@@ -26,6 +26,7 @@ export default function Bookmarks() {
   const [editOrder, setEditOrder] = useState(false)
   const view = useViewStore((s) => s.views.bookmarks || 'list')
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null)
+  const [editingInModal, setEditingInModal] = useState(false)
 
   const fetchBookmarks = useCallback(async () => {
     try {
@@ -54,6 +55,12 @@ export default function Bookmarks() {
   const startEdit = (b: Bookmark) => {
     setEditingId(b.id)
     setEditForm({ url: b.url, title: b.title, description: b.description })
+  }
+
+  const startEditInModal = (b: Bookmark) => {
+    setSelectedBookmark(b)
+    setEditForm({ url: b.url, title: b.title, description: b.description })
+    setEditingInModal(true)
   }
 
   const cancelEdit = () => setEditingId(null)
@@ -164,7 +171,14 @@ export default function Bookmarks() {
                       </div>
                   )}
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); startEdit(b); }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
+                    <button onClick={(e) => {
+                      e.stopPropagation();
+                      if (view === 'grid') {
+                        startEditInModal(b);
+                      } else {
+                        startEdit(b);
+                      }
+                    }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(b.id); }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
                   </div>
                 </div>
@@ -233,36 +247,51 @@ export default function Bookmarks() {
         {selectedBookmark && (
             <div
                 className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                onClick={() => setSelectedBookmark(null)}
+                onClick={() => { setSelectedBookmark(null); setEditingInModal(false); }}
             >
               <div
                   className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-xl font-bold dark:text-white">{selectedBookmark.title || selectedBookmark.url}</h3>
-                  <button
-                      onClick={() => setSelectedBookmark(null)}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="p-6 space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">URL</label>
-                    <a href={selectedBookmark.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline block">{selectedBookmark.url}</a>
-                  </div>
-                  {selectedBookmark.description && (
-                      <div>
-                        <label className="text-xs text-gray-500 uppercase">Description</label>
-                        <AutoDirText text={selectedBookmark.description} as="p" className="dark:text-white whitespace-pre-wrap" />
+                {editingInModal ? (
+                    <>
+                      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-bold dark:text-white">Edit Bookmark</h3>
+                        <button onClick={() => setEditingInModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"><X size={20} /></button>
                       </div>
-                  )}
-                </div>
-                <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
-                  Last updated: {new Date(selectedBookmark.updated_at * 1000).toLocaleString()}
-                </div>
+                      <div className="p-6 space-y-3">
+                        <input type="url" value={editForm.url} onChange={e => setEditForm({...editForm, url: e.target.value})} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <input type="text" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <textarea value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} rows={6} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <div className="flex gap-2">
+                          <button onClick={() => { handleUpdate(selectedBookmark.id); setEditingInModal(false); setSelectedBookmark(null); }} className="rounded bg-green-600 px-4 py-2 text-white">Save</button>
+                          <button onClick={() => { setSelectedBookmark(null); setEditingInModal(false); }} className="rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white">Cancel</button>
+                        </div>
+                      </div>
+                    </>
+                ) : (
+                    <>
+                      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-bold dark:text-white">{selectedBookmark.title || selectedBookmark.url}</h3>
+                        <button onClick={() => setSelectedBookmark(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"><X size={20} /></button>
+                      </div>
+                      <div className="p-6 space-y-3">
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase">URL</label>
+                          <a href={selectedBookmark.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline block">{selectedBookmark.url}</a>
+                        </div>
+                        {selectedBookmark.description && (
+                            <div>
+                              <label className="text-xs text-gray-500 uppercase">Description</label>
+                              <AutoDirText text={selectedBookmark.description} as="p" className="dark:text-white whitespace-pre-wrap" />
+                            </div>
+                        )}
+                      </div>
+                      <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
+                        Last updated: {new Date(selectedBookmark.updated_at * 1000).toLocaleString()}
+                      </div>
+                    </>
+                )}
               </div>
             </div>
         )}

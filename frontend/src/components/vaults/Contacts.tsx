@@ -34,6 +34,7 @@ export default function Contacts() {
   const [editOrder, setEditOrder] = useState(false)
   const view = useViewStore((s) => s.views.contacts || 'list')
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [editingInModal, setEditingInModal] = useState(false)
 
   const fetchContacts = useCallback(async () => {
     try {
@@ -74,6 +75,18 @@ export default function Contacts() {
       addresses: c.addresses.join(', '),
       notes: c.notes,
     })
+  }
+
+  const startEditInModal = (c: Contact) => {
+    setSelectedContact(c)
+    setEditForm({
+      name: c.name,
+      phones: c.phones.join(', '),
+      emails: c.emails.join(', '),
+      addresses: c.addresses.join(', '),
+      notes: c.notes,
+    })
+    setEditingInModal(true)
   }
 
   const cancelEdit = () => setEditingId(null)
@@ -189,7 +202,14 @@ export default function Contacts() {
                       </div>
                   )}
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); startEdit(c); }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
+                    <button onClick={(e) => {
+                      e.stopPropagation();
+                      if (view === 'grid') {
+                        startEditInModal(c);
+                      } else {
+                        startEdit(c);
+                      }
+                    }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
                   </div>
                 </div>
@@ -264,44 +284,61 @@ export default function Contacts() {
         {selectedContact && (
             <div
                 className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                onClick={() => setSelectedContact(null)}
+                onClick={() => { setSelectedContact(null); setEditingInModal(false); }}
             >
               <div
                   className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-xl font-bold dark:text-white">{selectedContact.name}</h3>
-                  <button
-                      onClick={() => setSelectedContact(null)}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="p-6 space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Phones</label>
-                    {selectedContact.phones.length > 0 ? selectedContact.phones.map((p,i) => <div key={i} className="flex items-center gap-1 dark:text-white"><Phone size={16}/> {p}</div>) : <p className="text-gray-400">None</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Emails</label>
-                    {selectedContact.emails.length > 0 ? selectedContact.emails.map((e,i) => <div key={i} className="flex items-center gap-1 dark:text-white"><Mail size={16}/> {e}</div>) : <p className="text-gray-400">None</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Addresses</label>
-                    {selectedContact.addresses.length > 0 ? selectedContact.addresses.map((a,i) => <div key={i} className="flex items-center gap-1 dark:text-white"><MapPin size={16}/> {a}</div>) : <p className="text-gray-400">None</p>}
-                  </div>
-                  {selectedContact.notes && (
-                      <div>
-                        <label className="text-xs text-gray-500 uppercase">Notes</label>
-                        <AutoDirText text={selectedContact.notes} as="p" className="dark:text-white whitespace-pre-wrap" />
+                {editingInModal ? (
+                    <>
+                      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-bold dark:text-white">Edit Contact</h3>
+                        <button onClick={() => setEditingInModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"><X size={20} /></button>
                       </div>
-                  )}
-                </div>
-                <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
-                  Last updated: {new Date(selectedContact.updated_at * 1000).toLocaleString()}
-                </div>
+                      <div className="p-6 space-y-3">
+                        <input type="text" placeholder="Name" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <input type="text" placeholder="Phones (comma separated)" value={editForm.phones} onChange={e => setEditForm({...editForm, phones: e.target.value})} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <input type="text" placeholder="Emails (comma separated)" value={editForm.emails} onChange={e => setEditForm({...editForm, emails: e.target.value})} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <input type="text" placeholder="Addresses (comma separated)" value={editForm.addresses} onChange={e => setEditForm({...editForm, addresses: e.target.value})} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <textarea placeholder="Notes" value={editForm.notes} onChange={e => setEditForm({...editForm, notes: e.target.value})} rows={4} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        <div className="flex gap-2">
+                          <button onClick={() => { handleUpdate(selectedContact.id); setEditingInModal(false); setSelectedContact(null); }} className="rounded bg-green-600 px-4 py-2 text-white">Save</button>
+                          <button onClick={() => { setSelectedContact(null); setEditingInModal(false); }} className="rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white">Cancel</button>
+                        </div>
+                      </div>
+                    </>
+                ) : (
+                    <>
+                      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-bold dark:text-white">{selectedContact.name}</h3>
+                        <button onClick={() => setSelectedContact(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"><X size={20} /></button>
+                      </div>
+                      <div className="p-6 space-y-3">
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase">Phones</label>
+                          {selectedContact.phones.length > 0 ? selectedContact.phones.map((p,i) => <div key={i} className="flex items-center gap-1 dark:text-white"><Phone size={16}/> {p}</div>) : <p className="text-gray-400">None</p>}
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase">Emails</label>
+                          {selectedContact.emails.length > 0 ? selectedContact.emails.map((e,i) => <div key={i} className="flex items-center gap-1 dark:text-white"><Mail size={16}/> {e}</div>) : <p className="text-gray-400">None</p>}
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase">Addresses</label>
+                          {selectedContact.addresses.length > 0 ? selectedContact.addresses.map((a,i) => <div key={i} className="flex items-center gap-1 dark:text-white"><MapPin size={16}/> {a}</div>) : <p className="text-gray-400">None</p>}
+                        </div>
+                        {selectedContact.notes && (
+                            <div>
+                              <label className="text-xs text-gray-500 uppercase">Notes</label>
+                              <AutoDirText text={selectedContact.notes} as="p" className="dark:text-white whitespace-pre-wrap" />
+                            </div>
+                        )}
+                      </div>
+                      <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
+                        Last updated: {new Date(selectedContact.updated_at * 1000).toLocaleString()}
+                      </div>
+                    </>
+                )}
               </div>
             </div>
         )}
