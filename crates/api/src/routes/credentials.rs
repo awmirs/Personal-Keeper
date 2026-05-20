@@ -27,9 +27,16 @@ pub async fn vault_status(data: web::Data<AppState>) -> impl Responder {
 
 /// First-time setup or unlock. If no master password is set, this creates it.
 pub async fn unlock(
+    req: actix_web::HttpRequest,
     data: web::Data<AppState>,
     body: web::Json<UnlockRequest>,
 ) -> impl Responder {
+    use actix_web::HttpMessage;
+    let claims = match req.extensions().get::<crypto::jwt::Claims>().cloned() {
+        Some(c) => c,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Not authenticated" })),
+    };
+
     let config = match data.credential_config_repo.get_master_password().await {
         Ok(Some(cfg)) => cfg,
         Ok(None) => {
@@ -45,8 +52,7 @@ pub async fn unlock(
             }
             // Derive key
             let key = derive_key(&body.master_password, &salt);
-            let mut master_key = data.master_key.lock().unwrap();
-            *master_key = Some(key);
+            data.master_keys.lock().unwrap().insert(claims.sub, key);
             return HttpResponse::Ok().json(UnlockResponse { status: "master_password_set".to_string() });
         }
         Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
@@ -58,22 +64,29 @@ pub async fn unlock(
     }
 
     let key = derive_key(&body.master_password, &config.1);
-    let mut master_key = data.master_key.lock().unwrap();
-    *master_key = Some(key);
+    data.master_keys.lock().unwrap().insert(claims.sub, key);
 
     HttpResponse::Ok().json(UnlockResponse { status: "unlocked".to_string() })
 }
 
-pub async fn lock(data: web::Data<AppState>) -> impl Responder {
-    let mut master_key = data.master_key.lock().unwrap();
-    *master_key = None;
+pub async fn lock(
+    req: actix_web::HttpRequest,
+    data: web::Data<AppState>,
+) -> impl Responder {
+    use actix_web::HttpMessage;
+    if let Some(claims) = req.extensions().get::<crypto::jwt::Claims>() {
+        data.master_keys.lock().unwrap().remove(&claims.sub);
+    }
     HttpResponse::Ok().json(serde_json::json!({ "status": "locked" }))
 }
 
 // ========== CRUD (requires unlock) ==========
 
-fn get_key(data: &web::Data<AppState>) -> Option<[u8; 32]> {
-    data.master_key.lock().unwrap().clone()
+fn get_key(req: &actix_web::HttpRequest, data: &web::Data<AppState>) -> Option<[u8; 32]> {
+    use actix_web::HttpMessage;
+    let claims = req.extensions().get::<crypto::jwt::Claims>().cloned()?;
+    let keys = data.master_keys.lock().unwrap();
+    keys.get(&claims.sub).cloned()
 }
 
 #[derive(serde::Deserialize)]
@@ -97,10 +110,11 @@ pub struct UpdateCredentialRequest {
 }
 
 pub async fn create_credential(
+    req: actix_web::HttpRequest,
     data: web::Data<AppState>,
     body: web::Json<CreateCredentialRequest>,
 ) -> impl Responder {
-    let key = match get_key(&data) {
+    let key = match get_key(&req, &data) {
         Some(k) => k,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Vault locked" })),
     };
@@ -136,10 +150,11 @@ pub async fn list_credentials(data: web::Data<AppState>) -> impl Responder {
 }
 
 pub async fn get_credential(
+    req: actix_web::HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    let key = match get_key(&data) {
+    let key = match get_key(&req, &data) {
         Some(k) => k,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Vault locked" })),
     };
@@ -171,10 +186,11 @@ pub async fn get_credential(
 }
 
 pub async fn delete_credential(
+    req: actix_web::HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    if get_key(&data).is_none() {
+    if get_key(&req, &data).is_none() {
         return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Vault locked" }));
     }
     match data.credential_repo.delete(&path.into_inner()).await {
@@ -184,11 +200,12 @@ pub async fn delete_credential(
 }
 
 pub async fn update_credential(
+    req: actix_web::HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateCredentialRequest>,
 ) -> impl Responder {
-    let key = match get_key(&data) {
+    let key = match get_key(&req, &data) {
         Some(k) => k,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Vault locked" })),
     };
@@ -241,10 +258,11 @@ pub struct PositionEntry {
 }
 
 pub async fn reorder_credentials(
+    req: actix_web::HttpRequest,
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
 ) -> impl Responder {
-    if get_key(&data).is_none() {
+    if get_key(&req, &data).is_none() {
         return HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Vault locked" }));
     }
     let positions: Vec<(uuid::Uuid, f64)> = body

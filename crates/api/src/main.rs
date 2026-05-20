@@ -27,7 +27,7 @@ struct AppState {
     pub credential_repo: Arc<CredentialRepository>,
     pub credential_config_repo: Arc<CredentialConfigRepository>,
     pub user_repo: Arc<UserRepository>,
-    pub master_key: Arc<Mutex<Option<[u8; 32]>>>,   // derived key
+    pub master_keys: Arc<Mutex<std::collections::HashMap<String, [u8; 32]>>>,   // derived keys per user ID
 }
 
 
@@ -52,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     let contact_repo = Arc::new(ContactRepository::new(Arc::new(pool.clone())));
     let credential_config_repo = Arc::new(CredentialConfigRepository::new(Arc::new(pool.clone())));
     let credential_repo = Arc::new(CredentialRepository::new(Arc::new(pool.clone())));
-    let master_key = Arc::new(Mutex::new(None));
+    let master_keys = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
 
     let app_state = web::Data::new(AppState {
@@ -64,7 +64,7 @@ async fn main() -> std::io::Result<()> {
         contact_repo,
         credential_config_repo,
         credential_repo,
-        master_key
+        master_keys,
     });
 
     println!("Server running on http://0.0.0.0:8080");
