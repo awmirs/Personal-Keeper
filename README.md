@@ -7,6 +7,12 @@ A self-hosted, offline-first personal knowledge base and vault. Securely store n
 [![React](https://img.shields.io/badge/React-18.x-61DAFB.svg)](https://reactjs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+<p align="center">
+  <img src="images/todos_screenshot.png" alt="Todos Vault" width="32%" />
+  <img src="images/settings_screenshot.png" alt="Settings" width="32%" />
+  <img src="images/bookmarks_screenshot.png" alt="Bookmarks Vault" width="32%" />
+</p>
+
 ---
 
 ## Features
