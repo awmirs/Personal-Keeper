@@ -128,6 +128,9 @@ async fn main() -> std::io::Result<()> {
             .configure(|cfg| {
                 #[cfg(feature = "swagger")]
                 cfg.service(docs::swagger_ui_service());
+
+                #[cfg(not(feature = "swagger"))]
+                let _ = &cfg;
             })
             .service(Files::new("/", "./frontend/dist").index_file("index.html"))
     })
