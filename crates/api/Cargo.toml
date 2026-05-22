@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+swagger = ["utoipa", "utoipa-swagger-ui", "domain/swagger"]
+
 [dependencies]
 domain = { path = "../domain" }
 storage-sqlite = { path = "../storage-sqlite" }
@@ -19,3 +22,7 @@ futures-util = "0.3"
 actix-files = "0.6"
 rand = "0.10.1"
 dotenvy = "0.15"
+
+# Swagger / OpenAPI (optional, enabled with --features swagger)
+utoipa = { version = "4", features = ["actix_extras", "uuid"], optional = true }
+utoipa-swagger-ui = { version = "4", features = ["actix-web"], optional = true }

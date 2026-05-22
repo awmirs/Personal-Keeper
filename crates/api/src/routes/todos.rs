@@ -3,6 +3,7 @@ use domain::models::todo::Todo;
 use domain::traits::repository::Repository;
 use crate::AppState;
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct CreateTodoRequest {
     pub title: String,
@@ -32,6 +33,7 @@ pub async fn create_todo(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct TodoQuery {
     pub search: Option<String>,
@@ -52,6 +54,7 @@ pub async fn list_todos(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct UpdateTodoRequest {
     pub title: Option<String>,
@@ -101,11 +104,13 @@ pub async fn delete_todo(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct ReorderRequest {
     pub positions: Vec<PositionEntry>,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct PositionEntry {
     pub id: String,

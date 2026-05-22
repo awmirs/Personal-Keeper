@@ -3,6 +3,7 @@ use domain::models::note::Note;
 use domain::traits::repository::Repository;
 use crate::AppState;
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct CreateNoteRequest {
     pub title: String,
@@ -37,6 +38,7 @@ pub async fn list_notes(data: web::Data<AppState>) -> impl Responder {
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct UpdateNoteRequest {
     pub title: Option<String>,
@@ -83,11 +85,13 @@ pub async fn delete_note(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct ReorderRequest {
     pub positions: Vec<PositionEntry>,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct PositionEntry {
     pub id: String,

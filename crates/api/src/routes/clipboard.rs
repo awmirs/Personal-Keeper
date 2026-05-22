@@ -3,6 +3,7 @@ use domain::models::clipboard::ClipboardItem;
 use domain::traits::repository::Repository;
 use crate::AppState;
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct CreateClipboardRequest {
     pub content: String,
@@ -34,6 +35,7 @@ pub async fn create_clipboard(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct ClipboardQuery {
     pub search: Option<String>,
@@ -64,11 +66,13 @@ pub async fn delete_clipboard(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct ReorderRequest {
     pub positions: Vec<PositionEntry>,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct PositionEntry {
     pub id: String,

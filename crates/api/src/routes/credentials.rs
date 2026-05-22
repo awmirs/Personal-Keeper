@@ -7,11 +7,13 @@ use crate::AppState;
 
 // ========== Unlock/Lock ==========
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct UnlockRequest {
     master_password: String,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Serialize)]
 pub struct UnlockResponse {
     status: String,
@@ -89,6 +91,7 @@ fn get_key(req: &actix_web::HttpRequest, data: &web::Data<AppState>) -> Option<[
     keys.get(&claims.sub).cloned()
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct CreateCredentialRequest {
     pub website: String,
@@ -99,6 +102,7 @@ pub struct CreateCredentialRequest {
     pub totp_secret: Option<String>,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct UpdateCredentialRequest {
     pub website: Option<String>,
@@ -246,11 +250,13 @@ pub async fn update_credential(
     }
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct ReorderRequest {
     pub positions: Vec<PositionEntry>,
 }
 
+#[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
 pub struct PositionEntry {
     pub id: String,
