@@ -52,6 +52,7 @@ export default function Layout() {
     const navLinks = [
         { to: '/', label: 'Notes' },
         { to: '/clipboard', label: 'Clipboard' },
+        { to: '/saved', label: 'Saved Messages' },
         { to: '/todos', label: 'Todos' },
         { to: '/bookmarks', label: 'Bookmarks' },
         { to: '/contacts', label: 'Contacts' },

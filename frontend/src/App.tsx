@@ -1,3 +1,4 @@
+import SavedMessages from './components/timeline/SavedMessages'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './lib/auth'
 import Login from './components/Login'
@@ -60,6 +61,7 @@ export default function App() {
                 >
                     <Route index element={<Notes />} />
                     <Route path="clipboard" element={<Clipboard />} />
+                    <Route path="saved" element={<SavedMessages />} />
                     <Route path="todos" element={<Todos />} />
                     <Route path="bookmarks" element={<Bookmarks />} />
                     <Route path="contacts" element={<Contacts />} />
