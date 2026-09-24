@@ -257,7 +257,7 @@ export default function Bookmarks() {
                     <>
                       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                         <h3 className="text-xl font-bold dark:text-white">Edit Bookmark</h3>
-                        <button onClick={() => setEditingInModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"><X size={20} /></button>
+                        <button type="button" onClick={() => { setEditingInModal(false); setSelectedBookmark(null); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"><X size={20} /></button>
                       </div>
                       <div className="p-6 space-y-3">
                         <input type="url" value={editForm.url} onChange={e => setEditForm({...editForm, url: e.target.value})} className="w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />

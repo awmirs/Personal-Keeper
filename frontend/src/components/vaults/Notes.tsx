@@ -169,12 +169,14 @@ export default function Notes() {
                     />
                     <div className="flex gap-2">
                         <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); handleUpdate(note.id); }}
                             className="rounded bg-green-600 px-3 py-1 text-white"
                         >
                             Save
                         </button>
                         <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); cancelEdit(); }}
                             className="rounded bg-gray-300 px-3 py-1 dark:bg-gray-600 dark:text-white"
                         >
@@ -256,6 +258,7 @@ export default function Notes() {
                 <div className="flex gap-2 items-center">
                     <ViewSwitcher vaultKey="notes" />
                     <button
+                        type="button"
                         onClick={() => setEditOrder(!editOrder)}
                         className={`flex items-center gap-2 rounded px-4 py-2 ${
                             editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
@@ -264,6 +267,7 @@ export default function Notes() {
                         {editOrder ? 'Done' : 'Edit Order'}
                     </button>
                     <button
+                        type="button"
                         onClick={() => setShowCreate(!showCreate)}
                         className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
                     >
@@ -345,7 +349,8 @@ export default function Notes() {
                                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                                     <h3 className="text-xl font-bold dark:text-white">Edit Note</h3>
                                     <button
-                                        onClick={() => { setEditingInModal(false); }}
+                                        type="button"
+                                        onClick={() => { setEditingInModal(false); setSelectedNote(null); }}
                                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
                                     >
                                         <X size={20} />
@@ -366,6 +371,7 @@ export default function Notes() {
                                     />
                                     <div className="flex gap-2">
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 handleUpdate(selectedNote.id);
                                                 setEditingInModal(false);
@@ -376,6 +382,7 @@ export default function Notes() {
                                             Save
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => { setSelectedNote(null); setEditingInModal(false); }}
                                             className="rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white"
                                         >
@@ -389,6 +396,7 @@ export default function Notes() {
                                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                                     <h3 className="text-xl font-bold dark:text-white">{selectedNote.title}</h3>
                                     <button
+                                        type="button"
                                         onClick={() => setSelectedNote(null)}
                                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
                                     >

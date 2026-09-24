@@ -19,6 +19,9 @@ export default function ViewSwitcher({ vaultKey }: { vaultKey: string }) {
             {allowedViews.map((key) => (
                 <button
                     key={key}
+                    type="button"
+                    aria-label={`Switch to ${key} view`}
+                    aria-pressed={view === key}
                     onClick={() => setView(vaultKey, key)}
                     className={`p-1 rounded ${
                         view === key
