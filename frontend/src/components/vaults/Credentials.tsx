@@ -1,61 +1,31 @@
 import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
-import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react'
+import type { Credential } from '../../types'
+import { Trash2, Lock, Eye, EyeOff, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
-import AutoDirText from "../AutoDirText.tsx";
-import LoadingSpinner from "../LoadingSpinner.tsx";
-import {useConfirmation} from "../../context/ConfirmationContext.tsx";
+import AutoDirText from '../AutoDirText'
+import LoadingSpinner from '../LoadingSpinner'
+import { useConfirmation } from '../../context/ConfirmationContext'
 import { useViewStore } from '../../stores/viewStore'
-import ViewSwitcher from '../ViewSwitcher'
-import ListView from '../views/ListView'
-import GridView from '../views/GridView'
-import CompactListView from '../views/CompactListView'
-
-type CredentialEntry = {
-    id: string
-    website: string
-    url: string
-    username: string
-    password_encrypted?: any
-    notes_encrypted?: any
-    totp_secret_encrypted?: any
-    // all metadata fields
-    created_at: number
-    updated_at: number
-    tags: any[]
-    color: any
-    is_favorite: boolean
-    trash_status: string
-    position: number
-}
-
-type CredentialDetail = CredentialEntry & {
-    password_plain?: string
-    notes_plain?: string
-    totp_secret_plain?: string
-}
+import VaultLayout from './VaultLayout'
 
 export default function Credentials() {
     const { confirm } = useConfirmation()
-    // Lock/unlock state
     const [masterPassword, setMasterPassword] = useState('')
     const [unlockError, setUnlockError] = useState('')
     const [unlocked, setUnlocked] = useState(false)
-    const [firstTime, setFirstTime] = useState<boolean | null>(null) // null while loading
+    const [firstTime, setFirstTime] = useState<boolean | null>(null)
 
-    // Check if master password is configured
     useEffect(() => {
         api.get('/credentials/status')
             .then(res => setFirstTime(!res.data.configured))
             .catch(() => setFirstTime(false))
     }, [])
 
-    // List state
-    const [credentials, setCredentials] = useState<CredentialEntry[]>([])
+    const [credentials, setCredentials] = useState<Credential[]>([])
     const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
 
-    // Create form
     const [showCreate, setShowCreate] = useState(false)
     const [newWebsite, setNewWebsite] = useState('')
     const [newUrl, setNewUrl] = useState('')
@@ -64,9 +34,8 @@ export default function Credentials() {
     const [newNotes, setNewNotes] = useState('')
     const [newTotp, setNewTotp] = useState('')
 
-    // Detail view
     const [selectedId, setSelectedId] = useState<string | null>(null)
-    const [detail, setDetail] = useState<CredentialDetail | null>(null)
+    const [detail, setDetail] = useState<Credential | null>(null)
     const [detailLoading, setDetailLoading] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -82,7 +51,6 @@ export default function Credentials() {
         totp_secret: '',
     })
 
-    // Fetch list (no decryption needed)
     const fetchCredentials = useCallback(async () => {
         try {
             setLoading(true)
@@ -95,7 +63,6 @@ export default function Credentials() {
         }
     }, [])
 
-    // Unlock (or set master password)
     const handleUnlock = async (e: React.FormEvent) => {
         e.preventDefault()
         setUnlockError('')
@@ -111,7 +78,6 @@ export default function Credentials() {
         }
     }
 
-    // Lock
     const handleLock = async () => {
         await api.post('/credentials/lock')
         setUnlocked(false)
@@ -120,7 +86,6 @@ export default function Credentials() {
         setMasterPassword('')
     }
 
-    // Create credential
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newWebsite.trim()) return
@@ -138,11 +103,10 @@ export default function Credentials() {
             setShowCreate(false)
             fetchCredentials()
         } catch (err: any) {
-            alert('Failed to create: ' + err.response?.data?.error || err.message)
+            alert('Failed to create: ' + (err.response?.data?.error || err.message))
         }
     }
 
-    // Delete
     const handleDelete = async (id: string) => {
         const ok = await confirm('Delete this credential?')
         if (!ok) return
@@ -154,7 +118,7 @@ export default function Credentials() {
             }
             fetchCredentials()
         } catch (err: any) {
-            alert('Failed to delete: ' + err.response?.data?.error || err.message)
+            alert('Failed to delete: ' + (err.response?.data?.error || err.message))
         }
     }
 
@@ -175,7 +139,6 @@ export default function Credentials() {
         }
     }
 
-    // Fetch detail (decrypted)
     const fetchDetail = async (id: string) => {
         setSelectedId(id)
         setDetailLoading(true)
@@ -192,7 +155,7 @@ export default function Credentials() {
                 totp_secret: res.data.totp_secret_plain || '',
             })
         } catch (err: any) {
-            alert('Failed to load credential: ' + err.response?.data?.error || err.message)
+            alert('Failed to load credential: ' + (err.response?.data?.error || err.message))
             setSelectedId(null)
         } finally {
             setDetailLoading(false)
@@ -215,11 +178,10 @@ export default function Credentials() {
             fetchDetail(detail.id)
             fetchCredentials()
         } catch (err: any) {
-            alert('Failed to update: ' + err.response?.data?.error || err.message)
+            alert('Failed to update: ' + (err.response?.data?.error || err.message))
         }
     }
 
-    // Copy to clipboard
     const copyToClipboard = async (text: string, field: string) => {
         try {
             await navigator.clipboard.writeText(text)
@@ -237,13 +199,11 @@ export default function Credentials() {
         }
     }
 
-    // Filtered list
     const filtered = credentials.filter(c =>
         c.website.toLowerCase().includes(search.toLowerCase()) ||
         c.username.toLowerCase().includes(search.toLowerCase())
     )
 
-    // If locked or first time not yet determined
     if (!unlocked) {
         if (firstTime === null) {
             return (
@@ -285,7 +245,7 @@ export default function Credentials() {
         )
     }
 
-    const renderCredential = (cred: CredentialEntry, index: number) => (
+    const renderCredential = (cred: Credential, index: number) => (
         <div
             key={cred.id}
             className={`rounded bg-white p-3 shadow dark:bg-gray-800 flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
@@ -301,7 +261,7 @@ export default function Credentials() {
                 {editOrder && (
                     <div className="flex flex-col gap-0.5">
                         <button
-                            onClick={(e) => { e.stopPropagation(); moveCredential(index, 'up'); }}
+                            onClick={(e) => { e.stopPropagation(); moveCredential(index, 'up') }}
                             disabled={index === 0}
                             className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
                             title="Move up"
@@ -309,7 +269,7 @@ export default function Credentials() {
                             <ChevronUp size={18} />
                         </button>
                         <button
-                            onClick={(e) => { e.stopPropagation(); moveCredential(index, 'down'); }}
+                            onClick={(e) => { e.stopPropagation(); moveCredential(index, 'down') }}
                             disabled={index === filtered.length - 1}
                             className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
                             title="Move down"
@@ -319,57 +279,38 @@ export default function Credentials() {
                     </div>
                 )}
                 <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(cred.id); }}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(cred.id) }}
                     className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
                 >
                     <Trash2 size={20} />
                 </button>
             </div>
         </div>
-    );
+    )
 
-    // Main unlocked view
     return (
-        <div>
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold dark:text-white">Credentials</h2>
-                <div className="flex gap-2 items-center">
-                    <ViewSwitcher vaultKey="credentials" />
-                    <button
-                        onClick={() => setEditOrder(!editOrder)}
-                        className={`flex items-center gap-2 rounded px-4 py-2 ${
-                            editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
-                        }`}
-                    >
-                        {editOrder ? 'Done' : 'Edit Order'}
-                    </button>
-                    <button
-                        onClick={() => setShowCreate(!showCreate)}
-                        className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                    >
-                        <Plus size={18} /> Add
-                    </button>
-                    <button
-                        onClick={handleLock}
-                        className="flex items-center gap-2 rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white"
-                    >
-                        <Lock size={18} /> Lock
-                    </button>
-                </div>
-            </div>
-
-            <div className="relative mb-4">
-                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                <input
-                    type="text"
-                    placeholder="Search credentials..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full rounded border pl-10 pr-4 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                />
-            </div>
-
-            {showCreate && (
+        <VaultLayout
+            title="Credentials"
+            vaultKey="credentials"
+            search={search}
+            onSearchChange={setSearch}
+            editOrder={editOrder}
+            onToggleEditOrder={() => setEditOrder(!editOrder)}
+            onAdd={() => setShowCreate(!showCreate)}
+            addLabel="Add"
+            extraActions={
+                <button
+                    type="button"
+                    onClick={handleLock}
+                    className="flex items-center gap-2 rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white hover:bg-gray-400 dark:hover:bg-gray-500"
+                >
+                    <Lock size={18} /> Lock
+                </button>
+            }
+            loading={loading}
+            items={filtered}
+            renderItem={renderCredential}
+            createForm={showCreate && (
                 <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
                     <input
                         type="text"
@@ -420,16 +361,7 @@ export default function Credentials() {
                     </div>
                 </form>
             )}
-
-            {loading && <LoadingSpinner message="Loading credentials..." />}
-            {!loading && filtered.length === 0 && <p className="text-gray-500">No credentials.</p>}
-
-            {view === 'list' && <ListView items={filtered} renderItem={renderCredential} />}
-            {view === 'grid' && <GridView items={filtered} renderItem={renderCredential} />}
-            {view === 'compact' && <CompactListView items={filtered} renderItem={renderCredential} />}
-
-            {/* Detail modal */}
-            {selectedId && (
+            detailModal={selectedId && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => { setSelectedId(null); setDetail(null) }}>
                     <div className="bg-white dark:bg-gray-800 rounded shadow-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         {detailLoading ? (
@@ -524,6 +456,6 @@ export default function Credentials() {
                     </div>
                 </div>
             )}
-        </div>
+        />
     )
 }

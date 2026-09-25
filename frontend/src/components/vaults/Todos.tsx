@@ -1,16 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
 import type { Todo } from '../../types'
-import { Plus, Trash2, Search, CheckCircle, Circle, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { Trash2, CheckCircle, Circle, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
-import AutoDirText from "../AutoDirText.tsx";
-import LoadingSpinner from "../LoadingSpinner.tsx";
-import {useConfirmation} from "../../context/ConfirmationContext.tsx";
+import AutoDirText from '../AutoDirText'
+import { useConfirmation } from '../../context/ConfirmationContext'
 import { useViewStore } from '../../stores/viewStore'
-import ViewSwitcher from '../ViewSwitcher'
-import ListView from '../views/ListView'
-import GridView from '../views/GridView'
-import CompactListView from '../views/CompactListView'
+import VaultLayout from './VaultLayout'
 
 export default function Todos() {
   const { confirm } = useConfirmation()
@@ -64,7 +60,6 @@ export default function Todos() {
   }
 
   const toggleCompleted = async (todo: Todo) => {
-    // Optimistically update local state
     const previousTodos = todos
     const updatedTodos = todos.map(t =>
         t.id === todo.id ? { ...t, completed: !t.completed, updated_at: Math.floor(Date.now() / 1000) } : t
@@ -74,7 +69,6 @@ export default function Todos() {
     try {
       await api.put(`/todos/${todo.id}`, { completed: !todo.completed })
     } catch (err: any) {
-      // Revert on failure
       setTodos(previousTodos)
       alert('Failed to update: ' + err.message)
     }
@@ -118,13 +112,11 @@ export default function Todos() {
           key={todo.id}
           className={`rounded bg-white p-4 shadow dark:bg-gray-800 group flex items-start gap-3 ${
               todo.completed ? 'opacity-60' : ''
-          } ${
-              view === 'grid' ? 'h-48 overflow-hidden cursor-pointer' : ''
-          }`}
+          } ${view === 'grid' ? 'h-48 overflow-hidden cursor-pointer' : ''}`}
           onClick={() => view === 'grid' && setSelectedTodo(todo)}
       >
         <button
-            onClick={(e) => { e.stopPropagation(); toggleCompleted(todo); }}
+            onClick={(e) => { e.stopPropagation(); toggleCompleted(todo) }}
             className="mt-0.5 text-gray-400 hover:text-green-500 flex-shrink-0 p-1"
             title={todo.completed ? 'Mark incomplete' : 'Mark complete'}
         >
@@ -147,7 +139,7 @@ export default function Todos() {
               {editOrder && (
                   <div className="flex flex-col gap-0.5">
                     <button
-                        onClick={(e) => { e.stopPropagation(); moveTodo(index, 'up'); }}
+                        onClick={(e) => { e.stopPropagation(); moveTodo(index, 'up') }}
                         disabled={index === 0}
                         className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
                         title="Move up"
@@ -155,7 +147,7 @@ export default function Todos() {
                       <ChevronUp size={18} />
                     </button>
                     <button
-                        onClick={(e) => { e.stopPropagation(); moveTodo(index, 'down'); }}
+                        onClick={(e) => { e.stopPropagation(); moveTodo(index, 'down') }}
                         disabled={index === filtered.length - 1}
                         className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
                         title="Move down"
@@ -165,7 +157,7 @@ export default function Todos() {
                   </div>
               )}
               <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(todo.id); }}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(todo.id) }}
                   className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1"
                   title="Delete"
               >
@@ -193,134 +185,97 @@ export default function Todos() {
           </div>
         </div>
       </div>
-  );
+  )
 
   return (
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold dark:text-white">Todos</h2>
-          <div className="flex gap-2 items-center">
-            <ViewSwitcher vaultKey="todos" />
-            <button
-                onClick={() => setEditOrder(!editOrder)}
-                className={`flex items-center gap-2 rounded px-4 py-2 ${
-                    editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
-                }`}
-            >
-              {editOrder ? 'Done' : 'Edit Order'}
-            </button>
-            <button
-                onClick={() => setShowCreate(!showCreate)}
-                className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-            >
-              <Plus size={18} />
-              New Todo
-            </button>
-          </div>
-        </div>
-
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-          <input
-              type="text"
-              placeholder="Search todos..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded border pl-10 pr-4 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-          />
-        </div>
-
-        {showCreate && (
-            <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
-              <input
-                  type="text"
-                  placeholder="Todo title"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="mb-3 w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-              />
-              <textarea
-                  placeholder="Description (optional)"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  rows={2}
-                  className="mb-3 w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              />
-              <div className="flex gap-2">
-                <button
-                    type="submit"
-                    className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
-                >
-                  Add
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setShowCreate(false)}
-                    className="rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-        )}
-
-        {loading && <LoadingSpinner message="Loading todos..." />}
-        {error && <p className="text-red-500">Error: {error}</p>}
-        {!loading && !error && filtered.length === 0 && (
-            <p className="text-gray-500">No todos found.</p>
-        )}
-
-        {view === 'list' && <ListView items={filtered} renderItem={renderTodo} />}
-        {view === 'grid' && <GridView items={filtered} renderItem={renderTodo} />}
-        {view === 'compact' && <CompactListView items={filtered} renderItem={renderTodo} />}
-
-
-        {/* Detail modal */}
-        {selectedTodo && (
-            <div
-                className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                onClick={() => setSelectedTodo(null)}
-            >
-              <div
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
-                  onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-xl font-bold dark:text-white">{selectedTodo.title}</h3>
+      <VaultLayout
+          title="Todos"
+          vaultKey="todos"
+          search={search}
+          onSearchChange={setSearch}
+          editOrder={editOrder}
+          onToggleEditOrder={() => setEditOrder(!editOrder)}
+          onAdd={() => setShowCreate(!showCreate)}
+          addLabel="New Todo"
+          loading={loading}
+          error={error}
+          items={filtered}
+          renderItem={renderTodo}
+          createForm={showCreate && (
+              <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
+                <input
+                    type="text"
+                    placeholder="Todo title"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="mb-3 w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    required
+                />
+                <textarea
+                    placeholder="Description (optional)"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    rows={2}
+                    className="mb-3 w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+                <div className="flex gap-2">
+                  <button type="submit" className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700">
+                    Add
+                  </button>
                   <button
-                      onClick={() => setSelectedTodo(null)}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                      type="button"
+                      onClick={() => setShowCreate(false)}
+                      className="rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white"
                   >
-                    <X size={20} />
+                    Cancel
                   </button>
                 </div>
-                <div className="p-6 space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Status</label>
-                    <p className="dark:text-white">{selectedTodo.completed ? 'Completed' : 'Pending'}</p>
+              </form>
+          )}
+          detailModal={selectedTodo && (
+              <div
+                  className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+                  onClick={() => setSelectedTodo(null)}
+              >
+                <div
+                    className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-xl font-bold dark:text-white">{selectedTodo.title}</h3>
+                    <button
+                        onClick={() => setSelectedTodo(null)}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                    >
+                      <X size={20} />
+                    </button>
                   </div>
-                  {selectedTodo.description && (
-                      <div>
-                        <label className="text-xs text-gray-500 uppercase">Description</label>
-                        <AutoDirText text={selectedTodo.description} as="p" className="dark:text-white whitespace-pre-wrap" />
-                      </div>
-                  )}
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase">Due Date</label>
-                    <p className="dark:text-white">
-                      {selectedTodo.due_date
-                          ? new Date(selectedTodo.due_date * 1000).toLocaleString()
-                          : 'No due date'}
-                    </p>
+                  <div className="p-6 space-y-3">
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Status</label>
+                      <p className="dark:text-white">{selectedTodo.completed ? 'Completed' : 'Pending'}</p>
+                    </div>
+                    {selectedTodo.description && (
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase">Description</label>
+                          <AutoDirText text={selectedTodo.description} as="p" className="dark:text-white whitespace-pre-wrap" />
+                        </div>
+                    )}
+                    <div>
+                      <label className="text-xs text-gray-500 uppercase">Due Date</label>
+                      <p className="dark:text-white">
+                        {selectedTodo.due_date
+                            ? new Date(selectedTodo.due_date * 1000).toLocaleString()
+                            : 'No due date'}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
-                  Last updated: {new Date(selectedTodo.updated_at * 1000).toLocaleString()}
+                  <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
+                    Last updated: {new Date(selectedTodo.updated_at * 1000).toLocaleString()}
+                  </div>
                 </div>
               </div>
-            </div>
-        )}
-      </div>
+          )}
+      />
   )
 }

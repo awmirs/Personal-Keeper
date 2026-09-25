@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss'
-import typography = require('@tailwindcss/typography')
+import typography from '@tailwindcss/typography'
 
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],

@@ -94,3 +94,23 @@ export interface Contact {
     addresses: string[]
     notes: string
 }
+
+export interface Credential {
+    id: string
+    created_at: number
+    updated_at: number
+    tags: Tag[]
+    color: ColorLabel | null
+    is_favorite: boolean
+    trash_status: 'Active' | 'Trashed' | 'Deleted'
+    position: number
+    website: string
+    url: string
+    username: string
+    password_encrypted?: { ciphertext: number[]; nonce: number[] } | null
+    notes_encrypted?: { ciphertext: number[]; nonce: number[] } | null
+    totp_secret_encrypted?: { ciphertext: number[]; nonce: number[] } | null
+    password_plain?: string
+    notes_plain?: string
+    totp_secret_plain?: string
+}

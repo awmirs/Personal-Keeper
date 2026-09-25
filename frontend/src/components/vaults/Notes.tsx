@@ -3,15 +3,11 @@ import api, { reorderVault } from '../../lib/api'
 import type { Note } from '../../types'
 import ReactMarkdown from 'react-markdown'
 import { markdownPlugins } from '../../lib/markdown'
-import {Plus, Trash2, Search, Edit3, ChevronUp, ChevronDown, X} from 'lucide-react'
+import { Trash2, Edit3, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
-import LoadingSpinner from '../LoadingSpinner'
-import {useConfirmation} from "../../context/ConfirmationContext.tsx";
-import ViewSwitcher from "../ViewSwitcher.tsx";
-import {useViewStore} from "../../stores/viewStore.ts";
-import ListView from "../views/ListView.tsx";
-import GridView from "../views/GridView.tsx";
-import CompactListView from "../views/CompactListView.tsx";
+import { useConfirmation } from '../../context/ConfirmationContext'
+import { useViewStore } from '../../stores/viewStore'
+import VaultLayout from './VaultLayout'
 
 export default function Notes() {
     const { confirm } = useConfirmation()
@@ -128,16 +124,13 @@ export default function Notes() {
         <div
             key={note.id}
             className={`rounded bg-white p-4 shadow dark:bg-gray-800 group relative ${
-                view === 'grid'
-                    ? 'h-64 overflow-hidden flex flex-col cursor-pointer'
-                    : ''
+                view === 'grid' ? 'h-64 overflow-hidden flex flex-col cursor-pointer' : ''
             }`}
             onClick={() => {
-                if (view === 'grid') setSelectedNote(note);
+                if (view === 'grid') setSelectedNote(note)
             }}
         >
             {editingId === note.id ? (
-                // Inline editing for non-grid views
                 <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="text"
@@ -154,14 +147,14 @@ export default function Notes() {
                     <div className="flex gap-2">
                         <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); handleUpdate(note.id); }}
+                            onClick={(e) => { e.stopPropagation(); handleUpdate(note.id) }}
                             className="rounded bg-green-600 px-3 py-1 text-white"
                         >
                             Save
                         </button>
                         <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); cancelEdit(); }}
+                            onClick={(e) => { e.stopPropagation(); cancelEdit() }}
                             className="rounded bg-gray-300 px-3 py-1 dark:bg-gray-600 dark:text-white"
                         >
                             Cancel
@@ -176,7 +169,7 @@ export default function Notes() {
                             {editOrder && (
                                 <div className="flex flex-col gap-0.5">
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); moveNote(index, 'up'); }}
+                                        onClick={(e) => { e.stopPropagation(); moveNote(index, 'up') }}
                                         disabled={index === 0}
                                         className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
                                         title="Move up"
@@ -184,7 +177,7 @@ export default function Notes() {
                                         <ChevronUp size={18} />
                                     </button>
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); moveNote(index, 'down'); }}
+                                        onClick={(e) => { e.stopPropagation(); moveNote(index, 'down') }}
                                         disabled={index === filteredNotes.length - 1}
                                         className="text-gray-400 hover:text-blue-500 disabled:opacity-30 p-0.5"
                                         title="Move down"
@@ -196,18 +189,18 @@ export default function Notes() {
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                                 <button
                                     onClick={(e) => {
-                                        e.stopPropagation();
+                                        e.stopPropagation()
                                         if (view === 'grid') {
-                                            startEditInModal(note);
+                                            startEditInModal(note)
                                         } else {
-                                            startEdit(note);
+                                            startEdit(note)
                                         }
                                     }}
                                     className="text-gray-400 hover:text-blue-500 p-1"
                                 >
                                     <Edit3 size={20} />
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); handleDelete(note.id); }} className="text-gray-400 hover:text-red-500 p-1">
+                                <button onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }} className="text-gray-400 hover:text-red-500 p-1">
                                     <Trash2 size={20} />
                                 </button>
                             </div>
@@ -216,15 +209,11 @@ export default function Notes() {
                     <hr className="my-1 border-gray-200 dark:border-gray-700" />
                     {view === 'grid' ? (
                         <div className="flex-1 overflow-hidden prose prose-sm dark:prose-invert max-w-none">
-                            <ReactMarkdown {...markdownPlugins}>
-                                {note.content}
-                            </ReactMarkdown>
+                            <ReactMarkdown {...markdownPlugins}>{note.content}</ReactMarkdown>
                         </div>
                     ) : (
                         <div className="prose dark:prose-invert max-w-none text-gray-600 dark:text-gray-300">
-                            <ReactMarkdown {...markdownPlugins}>
-                                {note.content}
-                            </ReactMarkdown>
+                            <ReactMarkdown {...markdownPlugins}>{note.content}</ReactMarkdown>
                         </div>
                     )}
                     <p className="text-xs text-gray-400 mt-2">
@@ -233,46 +222,23 @@ export default function Notes() {
                 </>
             )}
         </div>
-    );
+    )
 
     return (
-        <div>
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold dark:text-white">Notes</h2>
-                <div className="flex gap-2 items-center">
-                    <ViewSwitcher vaultKey="notes" />
-                    <button
-                        type="button"
-                        onClick={() => setEditOrder(!editOrder)}
-                        className={`flex items-center gap-2 rounded px-4 py-2 ${
-                            editOrder ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
-                        }`}
-                    >
-                        {editOrder ? 'Done' : 'Edit Order'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setShowCreate(!showCreate)}
-                        className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                    >
-                        <Plus size={18} />
-                        New Note
-                    </button>
-                </div>
-            </div>
-
-            <div className="relative mb-4">
-                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                <input
-                    type="text"
-                    placeholder="Search notes..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full rounded border pl-10 pr-4 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                />
-            </div>
-
-            {showCreate && (
+        <VaultLayout
+            title="Notes"
+            vaultKey="notes"
+            search={search}
+            onSearchChange={setSearch}
+            editOrder={editOrder}
+            onToggleEditOrder={() => setEditOrder(!editOrder)}
+            onAdd={() => setShowCreate(!showCreate)}
+            addLabel="New Note"
+            loading={loading}
+            error={error}
+            items={filteredNotes}
+            renderItem={renderNote}
+            createForm={showCreate && (
                 <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
                     <input
                         type="text"
@@ -290,10 +256,7 @@ export default function Notes() {
                         className="mb-3 w-full rounded border p-2 font-mono dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     />
                     <div className="flex gap-2">
-                        <button
-                            type="submit"
-                            className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
-                        >
+                        <button type="submit" className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700">
                             Save
                         </button>
                         <button
@@ -306,23 +269,10 @@ export default function Notes() {
                     </div>
                 </form>
             )}
-
-            {loading && <LoadingSpinner message="Loading notes..." />}
-            {error && <p className="text-red-500">Error: {error}</p>}
-            {!loading && !error && filteredNotes.length === 0 && (
-                <p className="text-gray-500">No notes found.</p>
-            )}
-
-            {view === 'list' && <ListView items={filteredNotes} renderItem={renderNote} />}
-            {view === 'grid' && <GridView items={filteredNotes} renderItem={renderNote} />}
-            {view === 'compact' && <CompactListView items={filteredNotes} renderItem={renderNote} />}
-
-
-            {/* Detail modal */}
-            {selectedNote && (
+            detailModal={selectedNote && (
                 <div
                     className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                    onClick={() => { setSelectedNote(null); setEditingInModal(false); }}
+                    onClick={() => { setSelectedNote(null); setEditingInModal(false) }}
                 >
                     <div
                         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
@@ -334,7 +284,7 @@ export default function Notes() {
                                     <h3 className="text-xl font-bold dark:text-white">Edit Note</h3>
                                     <button
                                         type="button"
-                                        onClick={() => { setEditingInModal(false); setSelectedNote(null); }}
+                                        onClick={() => { setEditingInModal(false); setSelectedNote(null) }}
                                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
                                     >
                                         <X size={20} />
@@ -357,9 +307,9 @@ export default function Notes() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                handleUpdate(selectedNote.id);
-                                                setEditingInModal(false);
-                                                setSelectedNote(null); // optionally close modal after save
+                                                handleUpdate(selectedNote.id)
+                                                setEditingInModal(false)
+                                                setSelectedNote(null)
                                             }}
                                             className="rounded bg-green-600 px-4 py-2 text-white"
                                         >
@@ -367,7 +317,7 @@ export default function Notes() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => { setSelectedNote(null); setEditingInModal(false); }}
+                                            onClick={() => { setSelectedNote(null); setEditingInModal(false) }}
                                             className="rounded bg-gray-300 px-4 py-2 dark:bg-gray-600 dark:text-white"
                                         >
                                             Cancel
@@ -388,9 +338,7 @@ export default function Notes() {
                                     </button>
                                 </div>
                                 <div className="p-6 prose dark:prose-invert max-w-none">
-                                    <ReactMarkdown {...markdownPlugins}>
-                                        {selectedNote.content}
-                                    </ReactMarkdown>
+                                    <ReactMarkdown {...markdownPlugins}>{selectedNote.content}</ReactMarkdown>
                                 </div>
                                 <div className="border-t border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-400">
                                     Last updated: {new Date(selectedNote.updated_at * 1000).toLocaleString()}
@@ -400,6 +348,6 @@ export default function Notes() {
                     </div>
                 </div>
             )}
-        </div>
+        />
     )
 }
