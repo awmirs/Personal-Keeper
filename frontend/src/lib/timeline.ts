@@ -124,7 +124,8 @@ function firstLine(text: string): string {
 }
 
 function tagsOf(raw: any): string[] {
-    return Array.isArray(raw?.tags) ? raw.tags : []
+    if (!raw || !Array.isArray(raw.tags)) return []
+    return raw.tags.map((t: any) => (typeof t === 'string' ? t : t?.name ?? '')).filter(Boolean)
 }
 
 export function toTimelineItem(kind: VaultKind, raw: any): TimelineItem {

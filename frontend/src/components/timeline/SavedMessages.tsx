@@ -194,16 +194,17 @@ export default function SavedMessages() {
             setSaving(true)
             setModalError(null)
             try {
-                await api.put(`${KIND_API_BASES[editing.kind]}/${editing.id}`, { ...editing.raw, ...payload })
+                const res = await api.put(`${KIND_API_BASES[editing.kind]}/${editing.id}`, { ...editing.raw, ...payload })
+                const updated = toTimelineItem(editing.kind, res.data)
+                setItems((prev) => prev.map((it) => (it.key === editing.key ? updated : it)))
                 setEditing(null)
-                await loadAll()
             } catch (err) {
                 setModalError(errorMessage(err, 'Failed to save the changes'))
             } finally {
                 setSaving(false)
             }
         },
-        [editing, loadAll]
+        [editing]
     )
 
     const createItem = useCallback(
@@ -212,9 +213,10 @@ export default function SavedMessages() {
             setSaving(true)
             setModalError(null)
             try {
-                await api.post(KIND_API_BASES[creating], payload)
+                const res = await api.post(KIND_API_BASES[creating], payload)
+                const newItem = toTimelineItem(creating, res.data)
+                setItems((prev) => sortTimeline([...prev, newItem]))
                 setCreating(null)
-                await loadAll()
                 window.setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 200)
             } catch (err) {
                 setModalError(errorMessage(err, 'Failed to create the item'))
@@ -222,7 +224,7 @@ export default function SavedMessages() {
                 setSaving(false)
             }
         },
-        [creating, loadAll]
+        [creating]
     )
 
     const deleteItem = useCallback(async () => {
@@ -246,10 +248,11 @@ export default function SavedMessages() {
         const kind: VaultKind = composerKind === 'auto' ? detectKind(text) : composerKind
         setSending(true)
         try {
-            await api.post(KIND_API_BASES[kind], buildComposerPayload(kind, text))
+            const res = await api.post(KIND_API_BASES[kind], buildComposerPayload(kind, text))
+            const newItem = toTimelineItem(kind, res.data)
+            setItems((prev) => sortTimeline([...prev, newItem]))
             setComposerText('')
             if (composerRef.current) composerRef.current.style.height = 'auto'
-            await loadAll()
             window.setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 200)
             showToast(`Saved to your ${KIND_LABELS[kind]} vault`)
         } catch (err) {
@@ -257,7 +260,7 @@ export default function SavedMessages() {
         } finally {
             setSending(false)
         }
-    }, [composerKind, composerText, loadAll, sending, showToast])
+    }, [composerKind, composerText, sending, showToast])
 
     const handleComposerChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
         setComposerText(e.target.value)
