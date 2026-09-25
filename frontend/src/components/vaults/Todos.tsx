@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
 import type { Todo } from '../../types'
 import { Plus, Trash2, Search, CheckCircle, Circle, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { calculateFractionalPosition } from '../../lib/reorder'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -91,28 +92,16 @@ export default function Todos() {
   }
 
   const moveTodo = async (index: number, direction: 'up' | 'down') => {
-    const newTodos = [...todos]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= newTodos.length) return
+    const newPos = calculateFractionalPosition(filtered, index, direction)
+    if (newPos === null) return
 
-    const itemA = newTodos[index]
-    const itemB = newTodos[targetIndex]
-
-    ;[newTodos[index], newTodos[targetIndex]] = [newTodos[targetIndex], newTodos[index]]
-
-    const tempPos = itemA.position
-    itemA.position = itemB.position
-    itemB.position = tempPos
-
-    newTodos.sort((a, b) => a.position - b.position)
-
-    setTodos(newTodos)
+    const targetItem = filtered[index]
+    const updatedTodos = todos.map((t) => (t.id === targetItem.id ? { ...t, position: newPos } : t))
+    updatedTodos.sort((a, b) => a.position - b.position)
+    setTodos(updatedTodos)
 
     try {
-      await reorderVault('todos', [
-        { id: itemA.id, position: itemA.position },
-        { id: itemB.id, position: itemB.position },
-      ])
+      await reorderVault('todos', [{ id: targetItem.id, position: newPos }])
     } catch (err: any) {
       fetchTodos()
       alert('Failed to reorder: ' + (err.response?.data?.error || err.message))

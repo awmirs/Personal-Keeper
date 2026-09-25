@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
 import type { Contact } from '../../types'
 import { Plus, Trash2, Search, Phone, Mail, MapPin, Edit3, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { calculateFractionalPosition } from '../../lib/reorder'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -115,28 +116,16 @@ export default function Contacts() {
   }
 
   const moveContact = async (index: number, direction: 'up' | 'down') => {
-    const newContacts = [...contacts]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= newContacts.length) return
+    const newPos = calculateFractionalPosition(filtered, index, direction)
+    if (newPos === null) return
 
-    const itemA = newContacts[index]
-    const itemB = newContacts[targetIndex]
-
-    ;[newContacts[index], newContacts[targetIndex]] = [newContacts[targetIndex], newContacts[index]]
-
-    const tempPos = itemA.position
-    itemA.position = itemB.position
-    itemB.position = tempPos
-
-    newContacts.sort((a, b) => a.position - b.position)
-
-    setContacts(newContacts)
+    const targetItem = filtered[index]
+    const updatedContacts = contacts.map((c) => (c.id === targetItem.id ? { ...c, position: newPos } : c))
+    updatedContacts.sort((a, b) => a.position - b.position)
+    setContacts(updatedContacts)
 
     try {
-      await reorderVault('contacts', [
-        { id: itemA.id, position: itemA.position },
-        { id: itemB.id, position: itemB.position },
-      ])
+      await reorderVault('contacts', [{ id: targetItem.id, position: newPos }])
     } catch (err: any) {
       fetchContacts()
       alert('Failed to reorder: ' + (err.response?.data?.error || err.message))

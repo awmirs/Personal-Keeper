@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
 import type { Bookmark } from '../../types'
 import { Plus, Trash2, Search, ExternalLink, Edit3, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { calculateFractionalPosition } from '../../lib/reorder'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import { useConfirmation } from '../../context/ConfirmationContext';
@@ -83,28 +84,16 @@ export default function Bookmarks() {
   }
 
   const moveBookmark = async (index: number, direction: 'up' | 'down') => {
-    const newBookmarks = [...bookmarks]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= newBookmarks.length) return
+    const newPos = calculateFractionalPosition(filtered, index, direction)
+    if (newPos === null) return
 
-    const itemA = newBookmarks[index]
-    const itemB = newBookmarks[targetIndex]
-
-    ;[newBookmarks[index], newBookmarks[targetIndex]] = [newBookmarks[targetIndex], newBookmarks[index]]
-
-    const tempPos = itemA.position
-    itemA.position = itemB.position
-    itemB.position = tempPos
-
-    newBookmarks.sort((a, b) => a.position - b.position)
-
-    setBookmarks(newBookmarks)
+    const targetItem = filtered[index]
+    const updatedBookmarks = bookmarks.map((b) => (b.id === targetItem.id ? { ...b, position: newPos } : b))
+    updatedBookmarks.sort((a, b) => a.position - b.position)
+    setBookmarks(updatedBookmarks)
 
     try {
-      await reorderVault('bookmarks', [
-        { id: itemA.id, position: itemA.position },
-        { id: itemB.id, position: itemB.position },
-      ])
+      await reorderVault('bookmarks', [{ id: targetItem.id, position: newPos }])
     } catch (err: any) {
       fetchBookmarks()
       alert('Failed to reorder: ' + (err.response?.data?.error || err.message))

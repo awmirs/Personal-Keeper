@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
 import type { ClipboardItem } from '../../types'
 import { Plus, Trash2, Copy, Search, Check, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { calculateFractionalPosition } from '../../lib/reorder'
 import LoadingSpinner from '../LoadingSpinner'
 import AutoDirText from "../AutoDirText.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -59,28 +60,16 @@ export default function Clipboard() {
   }
 
   const moveItem = async (index: number, direction: 'up' | 'down') => {
-    const newItems = [...items]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= newItems.length) return
+    const newPos = calculateFractionalPosition(filtered, index, direction)
+    if (newPos === null) return
 
-    const itemA = newItems[index]
-    const itemB = newItems[targetIndex]
-
-    ;[newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]]
-
-    const tempPos = itemA.position
-    itemA.position = itemB.position
-    itemB.position = tempPos
-
-    newItems.sort((a, b) => a.position - b.position)
-
-    setItems(newItems)
+    const targetItem = filtered[index]
+    const updatedItems = items.map((it) => (it.id === targetItem.id ? { ...it, position: newPos } : it))
+    updatedItems.sort((a, b) => a.position - b.position)
+    setItems(updatedItems)
 
     try {
-      await reorderVault('clipboard', [
-        { id: itemA.id, position: itemA.position },
-        { id: itemB.id, position: itemB.position },
-      ])
+      await reorderVault('clipboard', [{ id: targetItem.id, position: newPos }])
     } catch (err: any) {
       fetchItems()
       alert('Failed to reorder: ' + (err.response?.data?.error || err.message))

@@ -47,7 +47,7 @@ macro_rules! impl_position_helpers {
         pub async fn get_next_position(&self, user_id: &str) -> Result<f64, CoreError> {
             let pool = Arc::clone(&self.pool);
             let sql = format!(
-                "SELECT COALESCE(MAX(position), -1.0) + 1.0 FROM {} WHERE user_id = ?1",
+                "SELECT COALESCE(MAX(position), 0.0) + 1000.0 FROM {} WHERE user_id = ?1",
                 $table
             );
             let user_id = user_id.to_string();

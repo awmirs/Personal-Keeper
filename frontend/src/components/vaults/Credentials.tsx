@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import api, { reorderVault } from '../../lib/api'
 import { Plus, Trash2, Search, Lock, Eye, EyeOff, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react'
+import { calculateFractionalPosition } from '../../lib/reorder'
 import AutoDirText from "../AutoDirText.tsx";
 import LoadingSpinner from "../LoadingSpinner.tsx";
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
@@ -158,28 +159,16 @@ export default function Credentials() {
     }
 
     const moveCredential = async (index: number, direction: 'up' | 'down') => {
-        const newCreds = [...credentials]
-        const targetIndex = direction === 'up' ? index - 1 : index + 1
-        if (targetIndex < 0 || targetIndex >= newCreds.length) return
+        const newPos = calculateFractionalPosition(filtered, index, direction)
+        if (newPos === null) return
 
-        const itemA = newCreds[index]
-        const itemB = newCreds[targetIndex]
-
-        ;[newCreds[index], newCreds[targetIndex]] = [newCreds[targetIndex], newCreds[index]]
-
-        const tempPos = itemA.position
-        itemA.position = itemB.position
-        itemB.position = tempPos
-
-        newCreds.sort((a, b) => a.position - b.position)
-
-        setCredentials(newCreds)
+        const targetItem = filtered[index]
+        const updatedCreds = credentials.map((c) => (c.id === targetItem.id ? { ...c, position: newPos } : c))
+        updatedCreds.sort((a, b) => a.position - b.position)
+        setCredentials(updatedCreds)
 
         try {
-            await reorderVault('credentials', [
-                { id: itemA.id, position: itemA.position },
-                { id: itemB.id, position: itemB.position },
-            ])
+            await reorderVault('credentials', [{ id: targetItem.id, position: newPos }])
         } catch (err: any) {
             fetchCredentials()
             alert('Failed to reorder: ' + (err.response?.data?.error || err.message))

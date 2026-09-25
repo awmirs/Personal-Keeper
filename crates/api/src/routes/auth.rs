@@ -1,7 +1,6 @@
-use actix_web::{web, HttpMessage, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, Responder};
 use crypto::hash::{hash_password, verify_password};
 use crypto::jwt::{create_access_token, create_refresh_token, verify_token};
-use crypto::jwt::Claims;
 
 use crate::AppState;
 

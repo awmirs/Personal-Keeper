@@ -4,6 +4,7 @@ import type { Note } from '../../types'
 import ReactMarkdown from 'react-markdown'
 import { markdownPlugins } from '../../lib/markdown'
 import {Plus, Trash2, Search, Edit3, ChevronUp, ChevronDown, X} from 'lucide-react'
+import { calculateFractionalPosition } from '../../lib/reorder'
 import LoadingSpinner from '../LoadingSpinner'
 import {useConfirmation} from "../../context/ConfirmationContext.tsx";
 import ViewSwitcher from "../ViewSwitcher.tsx";
@@ -101,33 +102,16 @@ export default function Notes() {
     }
 
     const moveNote = async (index: number, direction: 'up' | 'down') => {
-        const newNotes = [...notes]
-        const targetIndex = direction === 'up' ? index - 1 : index + 1
-        if (targetIndex < 0 || targetIndex >= newNotes.length) return
+        const newPos = calculateFractionalPosition(filteredNotes, index, direction)
+        if (newPos === null) return
 
-        // Capture the two items before any mutation
-        const itemA = newNotes[index]
-        const itemB = newNotes[targetIndex]
-
-            // Swap the items in the array
-        ;[newNotes[index], newNotes[targetIndex]] = [newNotes[targetIndex], newNotes[index]]
-
-        // Swap their positions
-        const tempPos = itemA.position
-        itemA.position = itemB.position
-        itemB.position = tempPos
-
-        // Sort the whole array by position so the visual order matches the new positions
-        newNotes.sort((a, b) => a.position - b.position)
-
-        // Optimistic update
-        setNotes(newNotes)
+        const targetItem = filteredNotes[index]
+        const updatedNotes = notes.map((n) => (n.id === targetItem.id ? { ...n, position: newPos } : n))
+        updatedNotes.sort((a, b) => a.position - b.position)
+        setNotes(updatedNotes)
 
         try {
-            await reorderVault('notes', [
-                { id: itemA.id, position: itemA.position },
-                { id: itemB.id, position: itemB.position },
-            ])
+            await reorderVault('notes', [{ id: targetItem.id, position: newPos }])
         } catch (err: any) {
             fetchNotes()
             alert('Failed to reorder: ' + (err.response?.data?.error || err.message))
