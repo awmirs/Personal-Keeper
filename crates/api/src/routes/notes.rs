@@ -1,7 +1,8 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpResponse};
 use domain::models::note::Note;
 use domain::traits::repository::Repository;
 use crate::AppState;
+use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -15,11 +16,8 @@ pub async fn create_note(
     user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<CreateNoteRequest>,
-) -> impl Responder {
-    let next_pos = match data.notes_repo.get_next_position(&user.user_id).await {
-        Ok(p) => p,
-        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    };
+) -> Result<HttpResponse, ApiError> {
+    let next_pos = data.notes_repo.get_next_position(&user.user_id).await?;
     let mut note = Note {
         meta: Default::default(),
         title: body.title.clone(),
@@ -27,20 +25,16 @@ pub async fn create_note(
         is_pinned: false,
     };
     note.meta.position = next_pos;
-    match data.notes_repo.save(&user.user_id, &note).await {
-        Ok(()) => HttpResponse::Created().json(&note),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.notes_repo.save(&user.user_id, &note).await?;
+    Ok(HttpResponse::Created().json(&note))
 }
 
 pub async fn list_notes(
     user: AuthUser,
     data: web::Data<AppState>,
-) -> impl Responder {
-    match data.notes_repo.find_all(&user.user_id).await {
-        Ok(notes) => HttpResponse::Ok().json(&notes),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+) -> Result<HttpResponse, ApiError> {
+    let notes = data.notes_repo.find_all(&user.user_id).await?;
+    Ok(HttpResponse::Ok().json(&notes))
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -55,12 +49,10 @@ pub async fn update_note(
     data: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateNoteRequest>,
-) -> impl Responder {
+) -> Result<HttpResponse, ApiError> {
     let id = path.into_inner();
-    let existing = match data.notes_repo.find_by_id(&user.user_id, &id).await {
-        Ok(Some(n)) => n,
-        _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Note not found" })),
-    };
+    let existing = data.notes_repo.find_by_id(&user.user_id, &id).await?
+        .ok_or_else(|| ApiError::NotFound("Note not found".to_string()))?;
 
     let updated = Note {
         meta: domain::models::common::ItemMetadata {
@@ -75,21 +67,17 @@ pub async fn update_note(
         is_pinned: existing.is_pinned,
     };
 
-    match data.notes_repo.save(&user.user_id, &updated).await {
-        Ok(()) => HttpResponse::Ok().json(&updated),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.notes_repo.save(&user.user_id, &updated).await?;
+    Ok(HttpResponse::Ok().json(&updated))
 }
 
 pub async fn delete_note(
     user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
-) -> impl Responder {
-    match data.notes_repo.delete(&user.user_id, &path.into_inner()).await {
-        Ok(()) => HttpResponse::NoContent().finish(),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+) -> Result<HttpResponse, ApiError> {
+    data.notes_repo.delete(&user.user_id, &path.into_inner()).await?;
+    Ok(HttpResponse::NoContent().finish())
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -109,14 +97,12 @@ pub async fn reorder_notes(
     user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
-) -> impl Responder {
+) -> Result<HttpResponse, ApiError> {
     let positions: Vec<(uuid::Uuid, f64)> = body
         .positions
         .iter()
         .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
         .collect();
-    match data.notes_repo.update_positions(&user.user_id, &positions).await {
-        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.notes_repo.update_positions(&user.user_id, &positions).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }

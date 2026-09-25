@@ -1,7 +1,8 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpResponse};
 use domain::models::bookmark::Bookmark;
 use domain::traits::repository::Repository;
 use crate::AppState;
+use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -16,11 +17,8 @@ pub async fn create_bookmark(
     user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<CreateBookmarkRequest>,
-) -> impl Responder {
-    let next_pos = match data.bookmark_repo.get_next_position(&user.user_id).await {
-        Ok(p) => p,
-        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    };
+) -> Result<HttpResponse, ApiError> {
+    let next_pos = data.bookmark_repo.get_next_position(&user.user_id).await?;
     let mut bookmark = Bookmark {
         meta: Default::default(),
         url: body.url.clone(),
@@ -30,10 +28,8 @@ pub async fn create_bookmark(
         thumbnail: None,
     };
     bookmark.meta.position = next_pos;
-    match data.bookmark_repo.save(&user.user_id, &bookmark).await {
-        Ok(()) => HttpResponse::Created().json(&bookmark),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.bookmark_repo.save(&user.user_id, &bookmark).await?;
+    Ok(HttpResponse::Created().json(&bookmark))
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -46,27 +42,22 @@ pub async fn list_bookmarks(
     user: AuthUser,
     data: web::Data<AppState>,
     query: web::Query<BookmarkQuery>,
-) -> impl Responder {
-    let result = if let Some(ref q) = query.search {
-        data.bookmark_repo.search(&user.user_id, q).await
+) -> Result<HttpResponse, ApiError> {
+    let items = if let Some(ref q) = query.search {
+        data.bookmark_repo.search(&user.user_id, q).await?
     } else {
-        data.bookmark_repo.find_all(&user.user_id).await
+        data.bookmark_repo.find_all(&user.user_id).await?
     };
-    match result {
-        Ok(items) => HttpResponse::Ok().json(&items),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    Ok(HttpResponse::Ok().json(&items))
 }
 
 pub async fn delete_bookmark(
     user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
-) -> impl Responder {
-    match data.bookmark_repo.delete(&user.user_id, &path.into_inner()).await {
-        Ok(()) => HttpResponse::NoContent().finish(),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+) -> Result<HttpResponse, ApiError> {
+    data.bookmark_repo.delete(&user.user_id, &path.into_inner()).await?;
+    Ok(HttpResponse::NoContent().finish())
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -82,12 +73,10 @@ pub async fn update_bookmark(
     data: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateBookmarkRequest>,
-) -> impl Responder {
+) -> Result<HttpResponse, ApiError> {
     let id = path.into_inner();
-    let existing = match data.bookmark_repo.find_by_id(&user.user_id, &id).await {
-        Ok(Some(b)) => b,
-        _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Bookmark not found" })),
-    };
+    let existing = data.bookmark_repo.find_by_id(&user.user_id, &id).await?
+        .ok_or_else(|| ApiError::NotFound("Bookmark not found".to_string()))?;
 
     let updated = Bookmark {
         meta: domain::models::common::ItemMetadata {
@@ -104,10 +93,8 @@ pub async fn update_bookmark(
         thumbnail: existing.thumbnail,
     };
 
-    match data.bookmark_repo.save(&user.user_id, &updated).await {
-        Ok(()) => HttpResponse::Ok().json(&updated),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.bookmark_repo.save(&user.user_id, &updated).await?;
+    Ok(HttpResponse::Ok().json(&updated))
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -127,14 +114,12 @@ pub async fn reorder_bookmarks(
     user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
-) -> impl Responder {
+) -> Result<HttpResponse, ApiError> {
     let positions: Vec<(uuid::Uuid, f64)> = body
         .positions
         .iter()
         .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
         .collect();
-    match data.bookmark_repo.update_positions(&user.user_id, &positions).await {
-        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.bookmark_repo.update_positions(&user.user_id, &positions).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }

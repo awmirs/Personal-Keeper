@@ -1,6 +1,7 @@
 mod routes;
 mod middleware;
 mod docs;
+mod error;
 
 use actix_web::{web, App, HttpServer};
 use actix_files::Files;
@@ -90,6 +91,7 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("/api")
                     .wrap(Authenticated)
+                    .route("/search", web::get().to(routes::search::search))
                     .route("/notes", web::post().to(routes::notes::create_note))
                     .route("/notes", web::get().to(routes::notes::list_notes))
                     .route("/notes/reorder", web::put().to(routes::notes::reorder_notes))

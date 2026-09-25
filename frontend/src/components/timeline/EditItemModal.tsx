@@ -34,10 +34,10 @@ export default function EditItemModal({ mode, kind, item, saving, error, onSave,
     const [name, setName] = useState(String(raw.name ?? ''))
     const [website, setWebsite] = useState(String(raw.website ?? ''))
     const [username, setUsername] = useState(String(raw.username ?? ''))
-    const [phones, setPhones] = useState(Array.isArray(raw.phones) ? raw.phones.join('\n') : '')
-    const [emails, setEmails] = useState(Array.isArray(raw.emails) ? raw.emails.join('\n') : '')
+    const [phones, setPhones] = useState<string>(Array.isArray(raw.phones) ? raw.phones.join('\n') : '')
+    const [emails, setEmails] = useState<string>(Array.isArray(raw.emails) ? raw.emails.join('\n') : '')
     const [notes, setNotes] = useState(String(raw.notes ?? ''))
-    const [tags, setTags] = useState(Array.isArray(raw.tags) ? raw.tags.join(', ') : '')
+    const [tags, setTags] = useState<string>(Array.isArray(raw.tags) ? raw.tags.join(', ') : '')
     const [completed, setCompleted] = useState(Boolean(raw.completed))
 
     useEffect(() => {
@@ -48,7 +48,7 @@ export default function EditItemModal({ mode, kind, item, saving, error, onSave,
         return () => document.removeEventListener('keydown', handler)
     }, [onClose, saving])
 
-    const parsedTags = (): string[] => tags.split(',').map((tag) => tag.trim()).filter(Boolean)
+    const parsedTags = (): string[] => tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
 
     const canSave = (): boolean => {
         switch (kind) {

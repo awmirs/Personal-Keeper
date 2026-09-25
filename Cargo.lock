@@ -326,6 +326,8 @@ dependencies = [
  "serde",
  "serde_json",
  "storage-sqlite",
+ "thiserror 2.0.18",
+ "tokio",
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",

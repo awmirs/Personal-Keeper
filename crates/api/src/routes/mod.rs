@@ -6,3 +6,4 @@ pub mod todos;
 pub mod bookmarks;
 pub mod contacts;
 pub mod credentials;
+pub mod search;

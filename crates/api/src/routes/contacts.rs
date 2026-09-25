@@ -1,7 +1,8 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpResponse};
 use domain::models::contact::Contact;
 use domain::traits::repository::Repository;
 use crate::AppState;
+use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -18,11 +19,8 @@ pub async fn create_contact(
     user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<CreateContactRequest>,
-) -> impl Responder {
-    let next_pos = match data.contact_repo.get_next_position(&user.user_id).await {
-        Ok(p) => p,
-        Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    };
+) -> Result<HttpResponse, ApiError> {
+    let next_pos = data.contact_repo.get_next_position(&user.user_id).await?;
     let mut contact = Contact {
         meta: Default::default(),
         name: body.name.clone(),
@@ -32,10 +30,8 @@ pub async fn create_contact(
         notes: body.notes.clone().unwrap_or_default(),
     };
     contact.meta.position = next_pos;
-    match data.contact_repo.save(&user.user_id, &contact).await {
-        Ok(()) => HttpResponse::Created().json(&contact),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.contact_repo.save(&user.user_id, &contact).await?;
+    Ok(HttpResponse::Created().json(&contact))
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -48,27 +44,22 @@ pub async fn list_contacts(
     user: AuthUser,
     data: web::Data<AppState>,
     query: web::Query<ContactQuery>,
-) -> impl Responder {
-    let result = if let Some(ref q) = query.search {
-        data.contact_repo.search(&user.user_id, q).await
+) -> Result<HttpResponse, ApiError> {
+    let items = if let Some(ref q) = query.search {
+        data.contact_repo.search(&user.user_id, q).await?
     } else {
-        data.contact_repo.find_all(&user.user_id).await
+        data.contact_repo.find_all(&user.user_id).await?
     };
-    match result {
-        Ok(items) => HttpResponse::Ok().json(&items),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    Ok(HttpResponse::Ok().json(&items))
 }
 
 pub async fn delete_contact(
     user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
-) -> impl Responder {
-    match data.contact_repo.delete(&user.user_id, &path.into_inner()).await {
-        Ok(()) => HttpResponse::NoContent().finish(),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+) -> Result<HttpResponse, ApiError> {
+    data.contact_repo.delete(&user.user_id, &path.into_inner()).await?;
+    Ok(HttpResponse::NoContent().finish())
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -86,12 +77,10 @@ pub async fn update_contact(
     data: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateContactRequest>,
-) -> impl Responder {
+) -> Result<HttpResponse, ApiError> {
     let id = path.into_inner();
-    let existing = match data.contact_repo.find_by_id(&user.user_id, &id).await {
-        Ok(Some(c)) => c,
-        _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Contact not found" })),
-    };
+    let existing = data.contact_repo.find_by_id(&user.user_id, &id).await?
+        .ok_or_else(|| ApiError::NotFound("Contact not found".to_string()))?;
 
     let updated = Contact {
         meta: domain::models::common::ItemMetadata {
@@ -108,10 +97,8 @@ pub async fn update_contact(
         notes: body.notes.clone().unwrap_or(existing.notes),
     };
 
-    match data.contact_repo.save(&user.user_id, &updated).await {
-        Ok(()) => HttpResponse::Ok().json(&updated),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.contact_repo.save(&user.user_id, &updated).await?;
+    Ok(HttpResponse::Ok().json(&updated))
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -131,14 +118,12 @@ pub async fn reorder_contacts(
     user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
-) -> impl Responder {
+) -> Result<HttpResponse, ApiError> {
     let positions: Vec<(uuid::Uuid, f64)> = body
         .positions
         .iter()
         .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
         .collect();
-    match data.contact_repo.update_positions(&user.user_id, &positions).await {
-        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
-    }
+    data.contact_repo.update_positions(&user.user_id, &positions).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, X, FileText, Clipboard, CheckSquare, Bookmark, User } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import api from '../lib/api'
 
 type SearchResult = {
@@ -15,6 +16,7 @@ export default function GlobalSearch({ isOpen, onClose }: { isOpen: boolean; onC
     const [results, setResults] = useState<SearchResult[]>([])
     const [loading, setLoading] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
+    const navigate = useNavigate()
 
     useEffect(() => {
         if (isOpen) {
@@ -26,61 +28,23 @@ export default function GlobalSearch({ isOpen, onClose }: { isOpen: boolean; onC
     }, [isOpen])
 
     useEffect(() => {
-        if (!query.trim()) {
+        const trimmed = query.trim()
+        if (!trimmed) {
             setResults([])
             return
         }
+
         const delay = setTimeout(async () => {
             setLoading(true)
             try {
-                const [notes, clipboard, todos, bookmarks, contacts] = await Promise.allSettled([
-                    api.get(`/notes?search=${encodeURIComponent(query)}`),
-                    api.get(`/clipboard?search=${encodeURIComponent(query)}`),
-                    api.get(`/todos?search=${encodeURIComponent(query)}`),
-                    api.get(`/bookmarks?search=${encodeURIComponent(query)}`),
-                    api.get(`/contacts?search=${encodeURIComponent(query)}`),
-                ])
-
-                const all: SearchResult[] = []
-
-                if (notes.status === 'fulfilled') {
-                    notes.value.data.forEach((n: any) =>
-                        all.push({ vault: 'Notes', id: n.id, title: n.title, subtitle: n.content.slice(0, 100) })
-                    )
-                }
-                if (clipboard.status === 'fulfilled') {
-                    clipboard.value.data.forEach((c: any) =>
-                        all.push({ vault: 'Clipboard', id: c.id, title: c.content.slice(0, 80), subtitle: '' })
-                    )
-                }
-                if (todos.status === 'fulfilled') {
-                    todos.value.data.forEach((t: any) =>
-                        all.push({
-                            vault: 'Todos',
-                            id: t.id,
-                            title: t.title,
-                            subtitle: t.completed ? 'Completed' : 'Pending',
-                        })
-                    )
-                }
-                if (bookmarks.status === 'fulfilled') {
-                    bookmarks.value.data.forEach((b: any) =>
-                        all.push({ vault: 'Bookmarks', id: b.id, title: b.title || b.url, subtitle: b.url, url: b.url })
-                    )
-                }
-                if (contacts.status === 'fulfilled') {
-                    contacts.value.data.forEach((c: any) =>
-                        all.push({ vault: 'Contacts', id: c.id, title: c.name, subtitle: c.phones.join(', ') || c.emails.join(', ') })
-                    )
-                }
-
-                setResults(all)
+                const res = await api.get('/search', { params: { q: trimmed } })
+                setResults(res.data)
             } catch {
                 setResults([])
             } finally {
                 setLoading(false)
             }
-        }, 300)
+        }, 250)
 
         return () => clearTimeout(delay)
     }, [query])
@@ -126,23 +90,22 @@ export default function GlobalSearch({ isOpen, onClose }: { isOpen: boolean; onC
                             key={`${r.vault}-${r.id}`}
                             className="flex items-start gap-3 p-3 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                             onClick={() => {
-                                // Navigate to the appropriate vault (simplified: we'll just navigate to the vault's page)
                                 const vaultPath =
                                     r.vault === 'Notes' ? '/' :
                                         r.vault === 'Clipboard' ? '/clipboard' :
                                             r.vault === 'Todos' ? '/todos' :
                                                 r.vault === 'Bookmarks' ? '/bookmarks' : '/contacts'
-                                window.location.href = vaultPath
+                                navigate(vaultPath)
                                 onClose()
                             }}
                         >
-                            <div className="text-gray-500 dark:text-gray-400 mt-1">{iconMap[r.vault]}</div>
+                            <div className="text-gray-500 dark:text-gray-400 mt-1">{iconMap[r.vault] ?? <FileText size={18} />}</div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-medium uppercase text-gray-400">{r.vault}</span>
                                 </div>
                                 <div className="font-medium dark:text-white truncate">{r.title}</div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{r.subtitle}</div>
+                                {r.subtitle && <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{r.subtitle}</div>}
                             </div>
                         </div>
                     ))}
