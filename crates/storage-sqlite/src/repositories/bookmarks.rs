@@ -41,17 +41,19 @@ fn row_to_bookmark(row: &rusqlite::Row) -> Result<Bookmark, rusqlite::Error> {
 
 #[async_trait]
 impl Repository<Bookmark> for BookmarkRepository {
-    async fn save(&self, item: &Bookmark) -> Result<(), CoreError> {
+    async fn save(&self, user_id: &str, item: &Bookmark) -> Result<(), CoreError> {
         let pool = Arc::clone(&self.pool);
         let item = item.clone();
+        let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<(), CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             conn.execute(
                 "INSERT OR REPLACE INTO bookmarks
-                 (id, url, title, description, favicon, thumbnail, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                 (id, user_id, url, title, description, favicon, thumbnail, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     item.meta.id.to_string(),
+                    user_id,
                     item.url,
                     item.title,
                     item.description,
@@ -74,17 +76,18 @@ impl Repository<Bookmark> for BookmarkRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn find_by_id(&self, id: &str) -> Result<Option<Bookmark>, CoreError> {
+    async fn find_by_id(&self, user_id: &str, id: &str) -> Result<Option<Bookmark>, CoreError> {
         let pool = Arc::clone(&self.pool);
         let id = id.to_string();
+        let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Option<Bookmark>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
                 "SELECT id, url, title, description, favicon, thumbnail, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM bookmarks WHERE id = ?1"
+                 FROM bookmarks WHERE id = ?1 AND user_id = ?2"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut rows = stmt.query_map(params![id], row_to_bookmark)
+            let mut rows = stmt.query_map(params![id, user_id], row_to_bookmark)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             match rows.next() {
                 Some(Ok(b)) => Ok(Some(b)),
@@ -96,16 +99,17 @@ impl Repository<Bookmark> for BookmarkRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn find_all(&self) -> Result<Vec<Bookmark>, CoreError> {
+    async fn find_all(&self, user_id: &str) -> Result<Vec<Bookmark>, CoreError> {
         let pool = Arc::clone(&self.pool);
+        let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<Bookmark>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
                 "SELECT id, url, title, description, favicon, thumbnail, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM bookmarks ORDER BY position ASC, id ASC"
+                 FROM bookmarks WHERE user_id = ?1 ORDER BY position ASC, id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map([], row_to_bookmark)
+            let rows = stmt.query_map(params![user_id], row_to_bookmark)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut items = Vec::new();
             for row in rows {
@@ -117,12 +121,13 @@ impl Repository<Bookmark> for BookmarkRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn delete(&self, id: &str) -> Result<(), CoreError> {
+    async fn delete(&self, user_id: &str, id: &str) -> Result<(), CoreError> {
         let pool = Arc::clone(&self.pool);
         let id = id.to_string();
+        let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<(), CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            conn.execute("DELETE FROM bookmarks WHERE id = ?1", params![id])
+            conn.execute("DELETE FROM bookmarks WHERE id = ?1 AND user_id = ?2", params![id, user_id])
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             Ok(())
         })
@@ -130,17 +135,18 @@ impl Repository<Bookmark> for BookmarkRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn search(&self, query: &str) -> Result<Vec<Bookmark>, CoreError> {
+    async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Bookmark>, CoreError> {
         let pool = Arc::clone(&self.pool);
         let query = format!("%{}%", query);
+        let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<Bookmark>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
                 "SELECT id, url, title, description, favicon, thumbnail, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM bookmarks WHERE url LIKE ?1 OR title LIKE ?1 OR description LIKE ?1 ORDER BY position ASC, id ASC"
+                 FROM bookmarks WHERE user_id = ?1 AND (url LIKE ?2 OR title LIKE ?2 OR description LIKE ?2) ORDER BY position ASC, id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![query], row_to_bookmark)
+            let rows = stmt.query_map(params![user_id, query], row_to_bookmark)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut items = Vec::new();
             for row in rows {

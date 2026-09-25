@@ -44,17 +44,18 @@ pub fn parse_item_metadata(row: &Row, tags_start: usize) -> Result<ItemMetadata,
 /// on a repository struct. Call inside an `impl` block with the table name.
 macro_rules! impl_position_helpers {
     ($table:expr) => {
-        pub async fn get_next_position(&self) -> Result<f64, CoreError> {
+        pub async fn get_next_position(&self, user_id: &str) -> Result<f64, CoreError> {
             let pool = Arc::clone(&self.pool);
             let sql = format!(
-                "SELECT COALESCE(MAX(position), -1.0) + 1.0 FROM {}",
+                "SELECT COALESCE(MAX(position), -1.0) + 1.0 FROM {} WHERE user_id = ?1",
                 $table
             );
+            let user_id = user_id.to_string();
             tokio::task::spawn_blocking(move || {
                 let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
                 let mut stmt = conn.prepare(&sql)
                     .map_err(|e| CoreError::Storage(e.to_string()))?;
-                let pos: f64 = stmt.query_row([], |row| row.get(0))
+                let pos: f64 = stmt.query_row(rusqlite::params![user_id], |row| row.get(0))
                     .map_err(|e| CoreError::Storage(e.to_string()))?;
                 Ok(pos)
             })
@@ -64,13 +65,15 @@ macro_rules! impl_position_helpers {
 
         pub async fn update_positions(
             &self,
+            user_id: &str,
             positions: &[(uuid::Uuid, f64)],
         ) -> Result<(), CoreError> {
             let pool = Arc::clone(&self.pool);
             let sql = format!(
-                "UPDATE {} SET position = ?1, updated_at = ?2 WHERE id = ?3",
+                "UPDATE {} SET position = ?1, updated_at = ?2 WHERE id = ?3 AND user_id = ?4",
                 $table
             );
+            let user_id = user_id.to_string();
             let updates: Vec<(String, f64)> = positions
                 .iter()
                 .map(|(id, pos)| (id.to_string(), *pos))
@@ -81,7 +84,7 @@ macro_rules! impl_position_helpers {
                 for (id, pos) in &updates {
                     tx.execute(
                         &sql,
-                        rusqlite::params![pos, chrono::Utc::now().timestamp(), id],
+                        rusqlite::params![pos, chrono::Utc::now().timestamp(), id, user_id],
                     )
                     .map_err(|e| CoreError::Storage(e.to_string()))?;
                 }

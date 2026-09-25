@@ -2,6 +2,7 @@ use actix_web::{web, HttpResponse, Responder};
 use domain::models::bookmark::Bookmark;
 use domain::traits::repository::Repository;
 use crate::AppState;
+use crate::middleware::auth::AuthUser;
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
@@ -12,10 +13,11 @@ pub struct CreateBookmarkRequest {
 }
 
 pub async fn create_bookmark(
+    user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<CreateBookmarkRequest>,
 ) -> impl Responder {
-    let next_pos = match data.bookmark_repo.get_next_position().await {
+    let next_pos = match data.bookmark_repo.get_next_position(&user.user_id).await {
         Ok(p) => p,
         Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     };
@@ -28,7 +30,7 @@ pub async fn create_bookmark(
         thumbnail: None,
     };
     bookmark.meta.position = next_pos;
-    match data.bookmark_repo.save(&bookmark).await {
+    match data.bookmark_repo.save(&user.user_id, &bookmark).await {
         Ok(()) => HttpResponse::Created().json(&bookmark),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -41,13 +43,14 @@ pub struct BookmarkQuery {
 }
 
 pub async fn list_bookmarks(
+    user: AuthUser,
     data: web::Data<AppState>,
     query: web::Query<BookmarkQuery>,
 ) -> impl Responder {
     let result = if let Some(ref q) = query.search {
-        data.bookmark_repo.search(q).await
+        data.bookmark_repo.search(&user.user_id, q).await
     } else {
-        data.bookmark_repo.find_all().await
+        data.bookmark_repo.find_all(&user.user_id).await
     };
     match result {
         Ok(items) => HttpResponse::Ok().json(&items),
@@ -56,10 +59,11 @@ pub async fn list_bookmarks(
 }
 
 pub async fn delete_bookmark(
+    user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    match data.bookmark_repo.delete(&path.into_inner()).await {
+    match data.bookmark_repo.delete(&user.user_id, &path.into_inner()).await {
         Ok(()) => HttpResponse::NoContent().finish(),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -74,12 +78,13 @@ pub struct UpdateBookmarkRequest {
 }
 
 pub async fn update_bookmark(
+    user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateBookmarkRequest>,
 ) -> impl Responder {
     let id = path.into_inner();
-    let existing = match data.bookmark_repo.find_by_id(&id).await {
+    let existing = match data.bookmark_repo.find_by_id(&user.user_id, &id).await {
         Ok(Some(b)) => b,
         _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Bookmark not found" })),
     };
@@ -99,7 +104,7 @@ pub async fn update_bookmark(
         thumbnail: existing.thumbnail,
     };
 
-    match data.bookmark_repo.save(&updated).await {
+    match data.bookmark_repo.save(&user.user_id, &updated).await {
         Ok(()) => HttpResponse::Ok().json(&updated),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -119,6 +124,7 @@ pub struct PositionEntry {
 }
 
 pub async fn reorder_bookmarks(
+    user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
 ) -> impl Responder {
@@ -127,7 +133,7 @@ pub async fn reorder_bookmarks(
         .iter()
         .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
         .collect();
-    match data.bookmark_repo.update_positions(&positions).await {
+    match data.bookmark_repo.update_positions(&user.user_id, &positions).await {
         Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }

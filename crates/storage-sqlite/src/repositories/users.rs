@@ -82,6 +82,29 @@ impl UserRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
+    pub async fn find_by_id(&self, id: &str) -> Result<Option<User>, CoreError> {
+        let pool = Arc::clone(&self.pool);
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || -> Result<Option<User>, CoreError> {
+            let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
+            let mut stmt = conn
+                .prepare("SELECT id, username, password_hash FROM users WHERE id = ?1")
+                .map_err(|e| CoreError::Storage(e.to_string()))?;
+            let mut rows = stmt
+                .query_map(params![id], |row| {
+                    Ok(User {
+                        id: row.get(0)?,
+                        username: row.get(1)?,
+                        password_hash: row.get(2)?,
+                    })
+                })
+                .map_err(|e| CoreError::Storage(e.to_string()))?;
+            Ok(rows.next().transpose().map_err(|e| CoreError::Storage(e.to_string()))?)
+        })
+            .await
+            .map_err(|e| CoreError::Internal(e.to_string()))?
+    }
+
     pub async fn store_refresh_token(
         &self,
         user_id: &str,

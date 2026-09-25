@@ -4,14 +4,19 @@ use aes_gcm::{
 };
 use argon2::Argon2;
 use domain::models::credential::EncryptedData;
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// Secure container for master key material that is wiped on drop.
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+pub struct MasterKey(pub [u8; 32]);
 
 /// Derive a 256-bit key from a master password using Argon2id.
-pub fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
+pub fn derive_key(password: &str, salt: &[u8]) -> MasterKey {
     let mut key = [0u8; 32];
     Argon2::default()
         .hash_password_into(password.as_bytes(), salt, &mut key)
         .expect("Argon2 key derivation failed");
-    key
+    MasterKey(key)
 }
 
 /// Encrypt plaintext bytes with AES-256-GCM.

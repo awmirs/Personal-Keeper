@@ -117,15 +117,15 @@ pub async fn refresh(
 }
 
 pub async fn me(
-    _data: web::Data<AppState>,
-    req: actix_web::HttpRequest,
+    user: crate::middleware::auth::AuthUser,
+    data: web::Data<AppState>,
 ) -> impl Responder {
-    let claims = req.extensions().get::<Claims>().cloned();
-    match claims {
-        Some(c) => HttpResponse::Ok().json(serde_json::json!({
-            "user_id": c.sub,
-            "username": ""  // We don't store username in claims; could look it up later
-        })),
-        None => HttpResponse::Unauthorized().json(serde_json::json!({ "error": "Not authenticated" })),
-    }
+    let username = match data.user_repo.find_by_id(&user.user_id).await {
+        Ok(Some(u)) => u.username,
+        _ => String::new(),
+    };
+    HttpResponse::Ok().json(serde_json::json!({
+        "user_id": user.user_id,
+        "username": username,
+    }))
 }

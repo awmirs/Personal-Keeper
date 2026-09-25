@@ -13,20 +13,22 @@ impl CredentialConfigRepository {
         Self { pool }
     }
 
-    /// Set the master password hash and salt (only once if not exists).
+    /// Set the master password hash and salt for a user.
     pub async fn set_master_password(
         &self,
+        user_id: &str,
         password_hash: &str,
         salt: &[u8],
     ) -> Result<(), CoreError> {
         let pool = Arc::clone(&self.pool);
+        let user_id = user_id.to_string();
         let password_hash = password_hash.to_string();
         let salt = salt.to_vec();
         tokio::task::spawn_blocking(move || {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             conn.execute(
-                "INSERT OR REPLACE INTO credentials_config (id, password_hash, salt) VALUES ('master', ?1, ?2)",
-                params![password_hash, salt],
+                "INSERT OR REPLACE INTO credentials_config (user_id, password_hash, salt) VALUES (?1, ?2, ?3)",
+                params![user_id, password_hash, salt],
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             Ok(())
@@ -35,18 +37,20 @@ impl CredentialConfigRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    /// Get the master password hash and salt.
+    /// Get the master password hash and salt for a user.
     pub async fn get_master_password(
         &self,
+        user_id: &str,
     ) -> Result<Option<(String, Vec<u8>)>, CoreError> {
         let pool = Arc::clone(&self.pool);
+        let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn
-                .prepare("SELECT password_hash, salt FROM credentials_config WHERE id = 'master'")
+                .prepare("SELECT password_hash, salt FROM credentials_config WHERE user_id = ?1")
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut rows = stmt
-                .query_map([], |row| {
+                .query_map(params![user_id], |row| {
                     let hash: String = row.get(0)?;
                     let salt: Vec<u8> = row.get(1)?;
                     Ok((hash, salt))

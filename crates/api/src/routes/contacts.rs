@@ -2,6 +2,7 @@ use actix_web::{web, HttpResponse, Responder};
 use domain::models::contact::Contact;
 use domain::traits::repository::Repository;
 use crate::AppState;
+use crate::middleware::auth::AuthUser;
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
@@ -14,10 +15,11 @@ pub struct CreateContactRequest {
 }
 
 pub async fn create_contact(
+    user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<CreateContactRequest>,
 ) -> impl Responder {
-    let next_pos = match data.contact_repo.get_next_position().await {
+    let next_pos = match data.contact_repo.get_next_position(&user.user_id).await {
         Ok(p) => p,
         Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     };
@@ -30,7 +32,7 @@ pub async fn create_contact(
         notes: body.notes.clone().unwrap_or_default(),
     };
     contact.meta.position = next_pos;
-    match data.contact_repo.save(&contact).await {
+    match data.contact_repo.save(&user.user_id, &contact).await {
         Ok(()) => HttpResponse::Created().json(&contact),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -43,13 +45,14 @@ pub struct ContactQuery {
 }
 
 pub async fn list_contacts(
+    user: AuthUser,
     data: web::Data<AppState>,
     query: web::Query<ContactQuery>,
 ) -> impl Responder {
     let result = if let Some(ref q) = query.search {
-        data.contact_repo.search(q).await
+        data.contact_repo.search(&user.user_id, q).await
     } else {
-        data.contact_repo.find_all().await
+        data.contact_repo.find_all(&user.user_id).await
     };
     match result {
         Ok(items) => HttpResponse::Ok().json(&items),
@@ -58,10 +61,11 @@ pub async fn list_contacts(
 }
 
 pub async fn delete_contact(
+    user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    match data.contact_repo.delete(&path.into_inner()).await {
+    match data.contact_repo.delete(&user.user_id, &path.into_inner()).await {
         Ok(()) => HttpResponse::NoContent().finish(),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -78,12 +82,13 @@ pub struct UpdateContactRequest {
 }
 
 pub async fn update_contact(
+    user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateContactRequest>,
 ) -> impl Responder {
     let id = path.into_inner();
-    let existing = match data.contact_repo.find_by_id(&id).await {
+    let existing = match data.contact_repo.find_by_id(&user.user_id, &id).await {
         Ok(Some(c)) => c,
         _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Contact not found" })),
     };
@@ -103,7 +108,7 @@ pub async fn update_contact(
         notes: body.notes.clone().unwrap_or(existing.notes),
     };
 
-    match data.contact_repo.save(&updated).await {
+    match data.contact_repo.save(&user.user_id, &updated).await {
         Ok(()) => HttpResponse::Ok().json(&updated),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -123,6 +128,7 @@ pub struct PositionEntry {
 }
 
 pub async fn reorder_contacts(
+    user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
 ) -> impl Responder {
@@ -131,7 +137,7 @@ pub async fn reorder_contacts(
         .iter()
         .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
         .collect();
-    match data.contact_repo.update_positions(&positions).await {
+    match data.contact_repo.update_positions(&user.user_id, &positions).await {
         Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }

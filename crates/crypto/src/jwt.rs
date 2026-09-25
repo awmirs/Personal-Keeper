@@ -7,7 +7,15 @@ use std::sync::OnceLock;
 fn jwt_secret() -> &'static str {
     static SECRET: OnceLock<String> = OnceLock::new();
     SECRET.get_or_init(|| {
-        env::var("JWT_SECRET").unwrap_or_else(|_| "dev-secret-not-for-production".to_string())
+        match env::var("JWT_SECRET") {
+            Ok(val) if !val.trim().is_empty() => val,
+            _ => {
+                #[cfg(not(debug_assertions))]
+                panic!("FATAL: JWT_SECRET environment variable must be set in production mode!");
+                #[cfg(debug_assertions)]
+                "dev-secret-not-for-production".to_string()
+            }
+        }
     })
 }
 const ACCESS_TOKEN_MINUTES: u64 = 15;

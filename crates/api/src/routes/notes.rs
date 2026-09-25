@@ -2,6 +2,7 @@ use actix_web::{web, HttpResponse, Responder};
 use domain::models::note::Note;
 use domain::traits::repository::Repository;
 use crate::AppState;
+use crate::middleware::auth::AuthUser;
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
 #[derive(serde::Deserialize)]
@@ -11,10 +12,11 @@ pub struct CreateNoteRequest {
 }
 
 pub async fn create_note(
+    user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<CreateNoteRequest>,
 ) -> impl Responder {
-    let next_pos = match data.notes_repo.get_next_position().await {
+    let next_pos = match data.notes_repo.get_next_position(&user.user_id).await {
         Ok(p) => p,
         Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     };
@@ -25,14 +27,17 @@ pub async fn create_note(
         is_pinned: false,
     };
     note.meta.position = next_pos;
-    match data.notes_repo.save(&note).await {
+    match data.notes_repo.save(&user.user_id, &note).await {
         Ok(()) => HttpResponse::Created().json(&note),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }
 
-pub async fn list_notes(data: web::Data<AppState>) -> impl Responder {
-    match data.notes_repo.find_all().await {
+pub async fn list_notes(
+    user: AuthUser,
+    data: web::Data<AppState>,
+) -> impl Responder {
+    match data.notes_repo.find_all(&user.user_id).await {
         Ok(notes) => HttpResponse::Ok().json(&notes),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -46,12 +51,13 @@ pub struct UpdateNoteRequest {
 }
 
 pub async fn update_note(
+    user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateNoteRequest>,
 ) -> impl Responder {
     let id = path.into_inner();
-    let existing = match data.notes_repo.find_by_id(&id).await {
+    let existing = match data.notes_repo.find_by_id(&user.user_id, &id).await {
         Ok(Some(n)) => n,
         _ => return HttpResponse::NotFound().json(serde_json::json!({ "error": "Note not found" })),
     };
@@ -69,17 +75,18 @@ pub async fn update_note(
         is_pinned: existing.is_pinned,
     };
 
-    match data.notes_repo.save(&updated).await {
+    match data.notes_repo.save(&user.user_id, &updated).await {
         Ok(()) => HttpResponse::Ok().json(&updated),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
 }
 
 pub async fn delete_note(
+    user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    match data.notes_repo.delete(&path.into_inner()).await {
+    match data.notes_repo.delete(&user.user_id, &path.into_inner()).await {
         Ok(()) => HttpResponse::NoContent().finish(),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }
@@ -99,6 +106,7 @@ pub struct PositionEntry {
 }
 
 pub async fn reorder_notes(
+    user: AuthUser,
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
 ) -> impl Responder {
@@ -107,7 +115,7 @@ pub async fn reorder_notes(
         .iter()
         .filter_map(|entry| uuid::Uuid::parse_str(&entry.id).ok().map(|id| (id, entry.position)))
         .collect();
-    match data.notes_repo.update_positions(&positions).await {
+    match data.notes_repo.update_positions(&user.user_id, &positions).await {
         Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() })),
     }

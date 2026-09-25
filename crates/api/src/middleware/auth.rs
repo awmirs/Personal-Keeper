@@ -72,3 +72,26 @@ where
         }
     }
 }
+
+/// Extractor for authenticated user identity from verified JWT claims.
+#[derive(Debug, Clone)]
+pub struct AuthUser {
+    pub user_id: String,
+}
+
+impl actix_web::FromRequest for AuthUser {
+    type Error = Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+        if let Some(claims) = req.extensions().get::<crypto::jwt::Claims>() {
+            ready(Ok(AuthUser {
+                user_id: claims.sub.clone(),
+            }))
+        } else {
+            ready(Err(actix_web::error::ErrorUnauthorized(
+                serde_json::json!({ "error": "Unauthorized" }),
+            )))
+        }
+    }
+}

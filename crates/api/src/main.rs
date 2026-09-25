@@ -28,7 +28,7 @@ struct AppState {
     pub credential_repo: Arc<CredentialRepository>,
     pub credential_config_repo: Arc<CredentialConfigRepository>,
     pub user_repo: Arc<UserRepository>,
-    pub master_keys: Arc<Mutex<std::collections::HashMap<String, [u8; 32]>>>,   // derived keys per user ID
+    pub master_keys: Arc<Mutex<std::collections::HashMap<String, crypto::vault::MasterKey>>>,   // derived keys per user ID
 }
 
 
