@@ -5,3 +5,4 @@ pub mod credential;
 pub mod contact;
 pub mod bookmark;
 pub mod todo;
+pub mod history;

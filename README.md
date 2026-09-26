@@ -255,3 +255,34 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ---
 
 Enjoy your personal knowledge base!
+
+---
+
+## Version History
+
+Every vault item — notes, clipboard entries, todos, bookmarks, contacts and credentials — is fully versioned. Each create, update (including favorite/pin toggles, trash/restore and reordering) and delete is recorded as an immutable JSON snapshot in the `item_versions` table, so any previous state can be browsed, compared and restored.
+
+### How it works
+
+- SQLite triggers (migration `V10__item_history.sql`) snapshot every change automatically — no vault repository code was modified.
+- Version numbers are per item and monotonically increasing (`1, 2, 3, …`).
+- Existing rows received a baseline `created` version when the migration ran.
+- Restores are themselves recorded as a new `restored` version; restoring a hard-deleted item resurrects it.
+- Credential secrets are stored encrypted in history (as in the live tables) and are always masked as `[hidden]` in API responses — diffs still show whether they changed.
+
+### REST API
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/history/{item_type}/{item_id}` | All versions of an item (newest first) |
+| `GET` | `/api/history/{item_type}/{item_id}/versions/{version}` | One version snapshot |
+| `GET` | `/api/history/{item_type}/{item_id}/diff/{a}/{b}` | Field-level diff between two versions |
+| `POST` | `/api/history/{item_type}/{item_id}/versions/{version}/restore` | Restore an item to a version |
+| `DELETE` | `/api/history/{item_type}/{item_id}` | Purge all recorded history of an item |
+| `GET` | `/api/history/recent?limit=50&item_type=note` | Recent activity across vaults |
+
+`item_type` is one of `note`, `clipboard`, `todo`, `bookmark`, `contact`, `credential`.
+
+### UI
+
+Timeline bubbles have a **Version history** button that opens the history modal: a version list with operation badges, snapshot previews, field- and line-level diffs (compare any two versions), one-click restore and history purge.

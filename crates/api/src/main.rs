@@ -30,6 +30,7 @@ struct AppState {
     pub credential_config_repo: Arc<CredentialConfigRepository>,
     pub user_repo: Arc<UserRepository>,
     pub master_keys: Arc<Mutex<std::collections::HashMap<String, crypto::vault::MasterKey>>>,   // derived keys per user ID
+    pub history_repo: storage_sqlite::repositories::history::HistoryRepository,
 }
 
 
@@ -67,6 +68,7 @@ async fn main() -> std::io::Result<()> {
         credential_config_repo,
         credential_repo,
         master_keys,
+        history_repo: storage_sqlite::repositories::history::HistoryRepository::new(Arc::new(pool.clone())),
     });
 
     println!("Server running on http://0.0.0.0:8080");
@@ -93,6 +95,7 @@ async fn main() -> std::io::Result<()> {
                     .wrap(Authenticated)
                     .app_data(web::JsonConfig::default().limit(64 * 1024 * 1024))
                     .route("/search", web::get().to(routes::search::search))
+                    .configure(crate::routes::history::configure_history)
                     .route("/notes", web::post().to(routes::notes::create_note))
                     .route("/notes", web::get().to(routes::notes::list_notes))
                     .route("/notes/reorder", web::put().to(routes::notes::reorder_notes))

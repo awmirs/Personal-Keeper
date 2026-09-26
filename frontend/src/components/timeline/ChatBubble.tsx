@@ -9,6 +9,7 @@ import {
     Copy,
     ExternalLink,
     FileText,
+    History,
     Lock,
     Mail,
     Pencil,
@@ -17,6 +18,7 @@ import {
     User,
 } from 'lucide-react'
 import AutoDirText from '../AutoDirText'
+import VersionHistoryModal from '../history/VersionHistoryModal'
 import { KIND_ACCENTS, KIND_LABELS, formatDayLabel, formatTime } from '../../lib/timeline'
 import type { TimelineItem, VaultKind } from '../../lib/timeline'
 
@@ -39,7 +41,14 @@ interface ChatBubbleProps {
 
 export default function ChatBubble({ item, highlighted, onEdit, onDelete, onToggleTodo }: ChatBubbleProps) {
     const [copied, setCopied] = useState(false)
+    const [historyOpen, setHistoryOpen] = useState(false)
     const Icon = KIND_ICONS[item.kind]
+    const rawRecord = (item.raw ?? {}) as Record<string, unknown>
+    const itemId = String(
+        (item as { id?: unknown }).id ??
+            rawRecord.id ??
+            (item.key.includes(':') ? item.key.slice(item.key.indexOf(':') + 1) : item.key)
+    )
 
     const copyText = async () => {
         const text = item.kind === 'clipboard' ? String(item.raw?.content ?? '') : String(item.raw?.url ?? '')
@@ -102,6 +111,13 @@ export default function ChatBubble({ item, highlighted, onEdit, onDelete, onTogg
                         <Pencil size={13} />
                     </button>
                     <button
+                        onClick={() => setHistoryOpen(true)}
+                        title="Version history"
+                        className="rounded p-1 text-gray-500 opacity-0 hover:bg-black/10 focus:opacity-100 group-hover:opacity-100 dark:text-gray-400 dark:hover:bg-white/10"
+                    >
+                        <History size={13} />
+                    </button>
+                    <button
                         onClick={onDelete}
                         title="Delete"
                         className="rounded p-1 text-gray-500 opacity-0 hover:bg-black/10 hover:text-red-500 focus:opacity-100 group-hover:opacity-100 dark:text-gray-400 dark:hover:bg-white/10"
@@ -116,6 +132,15 @@ export default function ChatBubble({ item, highlighted, onEdit, onDelete, onTogg
                     </span>
                 </div>
             </div>
+            {historyOpen && (
+                <VersionHistoryModal
+                    itemType={item.kind}
+                    itemId={itemId}
+                    title={item.title}
+                    onRestored={() => window.location.reload()}
+                    onClose={() => setHistoryOpen(false)}
+                />
+            )}
         </div>
     )
 }
