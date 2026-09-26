@@ -560,6 +560,27 @@ function errorText(err: unknown): string {
     return String(err)
 }
 
+// Normalizes values the backend models cannot ingest directly: todo due
+// dates may arrive as (possibly non-numeric) strings from hand-written CSV
+// rows — numeric strings and ISO dates become epoch seconds, and anything
+// unparsable becomes null.
+function normalizeItemForImport(item: Item): Item {
+    const copy: Item = { ...item }
+    const due = copy['due_date']
+    if (typeof due === 'string') {
+        const trimmed = due.trim()
+        if (trimmed === '') {
+            copy['due_date'] = null
+        } else if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+            copy['due_date'] = Number(trimmed)
+        } else {
+            const parsed = Date.parse(trimmed)
+            copy['due_date'] = Number.isNaN(parsed) ? null : Math.floor(parsed / 1000)
+        }
+    }
+    return copy
+}
+
 // Sends the confirmed items to the vault's bulk /import endpoint in one
 // request. The client applies its classification decisions first (skip
 // filtering, and id-rewriting so content-level duplicates overwrite the
@@ -585,10 +606,10 @@ export async function runImport(
             continue
         }
         if (entry.status === 'duplicate' && strategy === 'replace' && entry.matchId !== null) {
-            payloads.push(withItemId(entry.data, entry.matchId))
+            payloads.push(normalizeItemForImport(withItemId(entry.data, entry.matchId)))
             continue
         }
-        payloads.push(entry.data)
+        payloads.push(normalizeItemForImport(entry.data))
     }
 
     if (payloads.length === 0) {
