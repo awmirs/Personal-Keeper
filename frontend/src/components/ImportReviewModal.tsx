@@ -27,7 +27,7 @@ const STRATEGIES: Array<{ value: ImportStrategy; label: string; hint: string }> 
     {
         value: 'replace',
         label: 'Replace duplicates',
-        hint: 'Re-create duplicates with the imported data. The old item is removed only after its replacement exists.',
+        hint: 'Overwrite duplicates in place with the imported data — ids, ordering and metadata are preserved.',
     },
     {
         value: 'copy',
@@ -196,8 +196,8 @@ export default function ImportReviewModal({
                         </ul>
 
                         <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-                            Ids, timestamps, ordering and other server-managed metadata are not restored; items are
-                            re-created through the vault's API.
+                            Items are imported with full fidelity: ids, tags, colors, favorites, timestamps and
+                            ordering are restored. Missing metadata is filled in with sensible defaults.
                         </p>
                     </div>
                 )}

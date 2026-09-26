@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { Download, Plus, Search, Upload } from 'lucide-react'
-import { classifyImportedItems, exportItems, isImportSupported, parseImportedFile, runImport } from '../../lib/importExport'
+import { classifyImportedItems, exportItems, fetchVaultItems, isImportSupported, parseImportedFile, runImport } from '../../lib/importExport'
 import type { ImportItem, ImportResult, ImportStrategy } from '../../lib/importExport'
 import ImportReviewModal from '../ImportReviewModal'
 import LoadingSpinner from '../LoadingSpinner'
@@ -80,7 +80,10 @@ export default function VaultLayout<T>({
                 setImportError('No items found in the selected file.')
                 return
             }
-            setImportReview(classifyImportedItems(vaultKey, parsed, items as unknown as Record<string, unknown>[]))
+            // Classify against the full vault contents rather than the
+            // currently displayed (possibly search-filtered) items.
+            const existing = await fetchVaultItems(vaultKey)
+            setImportReview(classifyImportedItems(vaultKey, parsed, existing))
         } catch (err) {
             setImportError(err instanceof Error ? err.message : 'Could not read the selected file.')
         }

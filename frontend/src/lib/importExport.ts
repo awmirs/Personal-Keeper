@@ -8,11 +8,12 @@
 //
 // Import accepts exactly the formats produced by export (JSON, CSV and
 // Markdown tables), plus a content-sniffing fallback for unknown file
-// extensions. Before anything is written, every parsed item is classified
-// against the vault's current contents as NEW, DUPLICATE (matched by id or
-// by content fingerprint) or INVALID (missing required fields); the UI
-// shows a review step where the user decides what happens to duplicates.
-// Writes go through the shared axios instance (lib/api.ts) so
+// extensions. Nothing is written until the user has reviewed the
+// classification of every parsed item (NEW / DUPLICATE / INVALID) and
+// chosen a duplicate strategy; the confirmed items are then sent in a
+// single full-fidelity bulk request to the vault's /import endpoint,
+// which restores ids, tags, colors, favorites, timestamps and ordering.
+// All requests go through the shared axios client (lib/api.ts) so
 // authentication and token refresh are handled centrally.
 
 import api from './api'
@@ -522,74 +523,28 @@ export function classifyImportedItems(
 }
 
 // ---------------------------------------------------------------------------
-// Import execution
+// Import execution (full-fidelity bulk endpoint)
 // ---------------------------------------------------------------------------
 
-// Server-managed or binary fields that must never be sent back on create.
-const SERVER_FIELDS = [
-    'id',
-    'meta',
-    'position',
-    'created_at',
-    'updated_at',
-    'user_id',
-    'trash_status',
-    'favicon',
-    'thumbnail',
-    'password_encrypted',
-    'notes_encrypted',
-    'totp_secret_encrypted',
-]
-
-const LIST_FIELDS = ['tags', 'phones', 'emails', 'addresses']
-
-function normalizeListField(value: unknown): string[] {
-    if (Array.isArray(value)) {
-        return value.map((entry) => String(entry).trim()).filter((entry) => entry !== '')
-    }
-    if (typeof value === 'string' && value.trim() !== '') {
-        return value
-            .split(',')
-            .map((entry) => entry.trim())
-            .filter((entry) => entry !== '')
-    }
-    if (value === null || value === undefined) return []
-    return [String(value)]
+// Fetches the FULL vault contents (not the search-filtered view) so that
+// duplicate detection is complete.
+export async function fetchVaultItems(vaultKey: string): Promise<Item[]> {
+    const spec = vaultSpec(vaultKey)
+    const res = await api.get(`/${spec.endpoint}`)
+    const data: unknown = res.data
+    if (!Array.isArray(data)) return []
+    return data.filter((entry): entry is Item => entry !== null && typeof entry === 'object')
 }
 
-function buildCreatePayload(item: Item): Item {
-    const payload: Item = {}
-    for (const [key, value] of Object.entries(item)) {
-        if (SERVER_FIELDS.includes(key)) continue
-        payload[key] = value
+// Returns a copy of the item with its id (top-level flattened metadata or a
+// nested meta object) replaced, so the backend upserts over that row.
+function withItemId(item: Item, id: string): Item {
+    const copy: Item = { ...item, id }
+    const meta = copy['meta']
+    if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+        copy['meta'] = { ...(meta as Item), id }
     }
-    for (const field of LIST_FIELDS) {
-        if (payload[field] !== undefined) payload[field] = normalizeListField(payload[field])
-    }
-    // Option<number> fields must not arrive as empty or non-numeric strings.
-    const due = payload['due_date']
-    if (due !== undefined) {
-        const numeric = typeof due === 'number' ? due : Number(due)
-        if (Number.isFinite(numeric)) {
-            payload['due_date'] = numeric
-        } else {
-            const parsed = Date.parse(String(due))
-            if (Number.isNaN(parsed)) {
-                delete payload['due_date']
-            } else {
-                payload['due_date'] = Math.floor(parsed / 1000)
-            }
-        }
-    }
-    return payload
-}
-
-function errorStatus(err: unknown): number | null {
-    if (typeof err === 'object' && err !== null) {
-        const response = (err as { response?: { status?: number } }).response
-        if (response && typeof response.status === 'number') return response.status
-    }
-    return null
+    return copy
 }
 
 function errorText(err: unknown): string {
@@ -605,58 +560,58 @@ function errorText(err: unknown): string {
     return String(err)
 }
 
+// Sends the confirmed items to the vault's bulk /import endpoint in one
+// request. The client applies its classification decisions first (skip
+// filtering, and id-rewriting so content-level duplicates overwrite the
+// matched item in place); the backend re-checks every id, restores full
+// item fidelity and reports per-item failures.
 export async function runImport(
     vaultKey: string,
     selected: ImportItem[],
     strategy: ImportStrategy
 ): Promise<ImportResult> {
     const spec = vaultSpec(vaultKey)
-    const result: ImportResult = { created: 0, replaced: 0, skipped: 0, failed: 0, errors: [] }
+
+    const payloads: Item[] = []
+    let clientSkipped = 0
 
     for (const entry of selected) {
-        const label = entry.title || '(untitled)'
-        try {
-            if (entry.status === 'invalid') {
-                result.skipped += 1
-                continue
-            }
-
-            if (entry.status === 'duplicate' && strategy === 'skip') {
-                result.skipped += 1
-                continue
-            }
-
-            if (entry.status === 'duplicate' && strategy === 'replace' && entry.matchId !== null) {
-                // Create the replacement first; the old item is removed only
-                // after its replacement exists, so a failure never loses data.
-                await api.post(`/${spec.endpoint}`, buildCreatePayload(entry.data))
-                try {
-                    await api.delete(`/${spec.endpoint}/${entry.matchId}`)
-                    result.replaced += 1
-                } catch (err) {
-                    result.created += 1
-                    result.errors.push(
-                        `Imported "${label}" but could not remove the old item: ${errorText(err)}`
-                    )
-                }
-                continue
-            }
-
-            // New items, "keep both" copies, and duplicates matched without a
-            // stable id (content match or in-file duplicate) are created.
-            await api.post(`/${spec.endpoint}`, buildCreatePayload(entry.data))
-            result.created += 1
-        } catch (err) {
-            const status = errorStatus(err)
-            if (status === 401 || status === 403) {
-                throw new Error(
-                    `Import aborted: not authorized while importing "${label}". Sign in again and retry.`
-                )
-            }
-            result.failed += 1
-            result.errors.push(`"${label}": ${errorText(err)}`)
+        if (entry.status === 'invalid') {
+            clientSkipped += 1
+            continue
         }
+        if (entry.status === 'duplicate' && strategy === 'skip') {
+            clientSkipped += 1
+            continue
+        }
+        if (entry.status === 'duplicate' && strategy === 'replace' && entry.matchId !== null) {
+            payloads.push(withItemId(entry.data, entry.matchId))
+            continue
+        }
+        payloads.push(entry.data)
     }
 
-    return result
+    if (payloads.length === 0) {
+        return { created: 0, replaced: 0, skipped: clientSkipped, failed: 0, errors: [] }
+    }
+
+    try {
+        const res = await api.post(`/${spec.endpoint}/import`, {
+            items: payloads,
+            strategy,
+        })
+        const data = (res.data ?? {}) as Partial<ImportResult>
+        const errors = Array.isArray(data.errors)
+            ? data.errors.filter((message): message is string => typeof message === 'string')
+            : []
+        return {
+            created: data.created ?? 0,
+            replaced: data.replaced ?? 0,
+            skipped: (data.skipped ?? 0) + clientSkipped,
+            failed: data.failed ?? 0,
+            errors,
+        }
+    } catch (err) {
+        throw new Error(`Import failed: ${errorText(err)}`)
+    }
 }
