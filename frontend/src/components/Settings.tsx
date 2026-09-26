@@ -1,4 +1,5 @@
 import { Sun, Moon } from 'lucide-react'
+import HistoryActivityFeed from './history/HistoryActivityFeed'
 import { useThemeStore } from '../stores/themeStore'
 import { themeNames } from '../lib/highlightThemes'
 import type { CodeThemeOption } from '../stores/themeStore'
@@ -46,7 +47,8 @@ export default function Settings() {
                         based on the app theme.
                     </p>
                 </div>
-            </div>
+                            <HistoryActivityFeed limit={30} />
+</div>
         </div>
     )
 }

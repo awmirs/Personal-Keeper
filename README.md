@@ -286,3 +286,5 @@ Every vault item — notes, clipboard entries, todos, bookmarks, contacts and cr
 ### UI
 
 Timeline bubbles have a **Version history** button that opens the history modal: a version list with operation badges, snapshot previews, field- and line-level diffs (compare any two versions), one-click restore and history purge.
+
+Every vault view (Notes, Clipboard, Todos, Bookmarks, Contacts, Credentials) also has a per-item history button next to its delete action. The timeline search sidebar shows a compact recent-activity feed, and the Settings page includes a full "Recent Activity" section.

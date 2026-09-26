@@ -8,6 +8,7 @@ import LoadingSpinner from '../LoadingSpinner'
 import { useConfirmation } from '../../context/ConfirmationContext'
 import { useViewStore } from '../../stores/viewStore'
 import VaultLayout from './VaultLayout'
+import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Credentials() {
     const { confirm } = useConfirmation()
@@ -284,6 +285,7 @@ export default function Credentials() {
                 >
                     <Trash2 size={20} />
                 </button>
+                <ItemHistoryButton itemType="credential" itemId={String(cred.id)} />
             </div>
         </div>
     )

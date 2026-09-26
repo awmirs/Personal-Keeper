@@ -7,6 +7,7 @@ import AutoDirText from '../AutoDirText'
 import { useConfirmation } from '../../context/ConfirmationContext'
 import { useViewStore } from '../../stores/viewStore'
 import VaultLayout from './VaultLayout'
+import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Todos() {
   const { confirm } = useConfirmation()
@@ -163,6 +164,7 @@ export default function Todos() {
               >
                 <Trash2 size={20} />
               </button>
+              <ItemHistoryButton itemType="todo" itemId={String(todo.id)} />
             </div>
           </div>
           <hr className="my-2 border-gray-200 dark:border-gray-700" />

@@ -7,6 +7,7 @@ import AutoDirText from '../AutoDirText'
 import { useConfirmation } from '../../context/ConfirmationContext'
 import { useViewStore } from '../../stores/viewStore'
 import VaultLayout from './VaultLayout'
+import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Contacts() {
   const { confirm } = useConfirmation()
@@ -196,6 +197,7 @@ export default function Contacts() {
                       }
                     }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id) }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
+                    <ItemHistoryButton itemType="contact" itemId={String(c.id)} />
                   </div>
                 </div>
               </div>

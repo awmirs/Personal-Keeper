@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { KIND_ACCENTS, KIND_LABELS, VAULT_KINDS, formatDayLabel, formatTime, snippetFor } from '../../lib/timeline'
 import type { TimelineItem, VaultKind } from '../../lib/timeline'
+import HistoryActivityFeed from '../history/HistoryActivityFeed'
 
 const KIND_ICONS: Record<VaultKind, typeof FileText> = {
     note: FileText,
@@ -186,6 +187,10 @@ export default function TimelineSearchSidebar({
                 {trimmedQuery && results.length === 0 && (
                     <p className="px-2 py-6 text-center text-sm text-gray-500 dark:text-gray-400">Nothing found</p>
                 )}
+            </div>
+
+            <div className="max-h-72 shrink-0 overflow-y-auto border-t border-gray-200 p-2 dark:border-gray-700">
+                <HistoryActivityFeed limit={8} />
             </div>
         </aside>
     )

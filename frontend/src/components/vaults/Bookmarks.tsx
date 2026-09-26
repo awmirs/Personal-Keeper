@@ -7,6 +7,7 @@ import AutoDirText from '../AutoDirText'
 import { useConfirmation } from '../../context/ConfirmationContext'
 import { useViewStore } from '../../stores/viewStore'
 import VaultLayout from './VaultLayout'
+import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Bookmarks() {
   const { confirm } = useConfirmation()
@@ -163,6 +164,7 @@ export default function Bookmarks() {
                       }
                     }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(b.id) }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
+                    <ItemHistoryButton itemType="bookmark" itemId={String(b.id)} />
                   </div>
                 </div>
               </div>

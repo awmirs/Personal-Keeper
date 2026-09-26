@@ -8,6 +8,7 @@ import { calculateFractionalPosition } from '../../lib/reorder'
 import { useConfirmation } from '../../context/ConfirmationContext'
 import { useViewStore } from '../../stores/viewStore'
 import VaultLayout from './VaultLayout'
+import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Notes() {
     const { confirm } = useConfirmation()
@@ -203,6 +204,7 @@ export default function Notes() {
                                 <button onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }} className="text-gray-400 hover:text-red-500 p-1">
                                     <Trash2 size={20} />
                                 </button>
+                                <ItemHistoryButton itemType="note" itemId={String(note.id)} />
                             </div>
                         </div>
                     </div>

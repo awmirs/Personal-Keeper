@@ -1,6 +1,9 @@
 // frontend/src/lib/versioning.ts
 // Client-side support for the item history / versioning feature:
-// API access (with auth token discovery), diff algorithms and display helpers.
+// API access (delegates auth to the app's auth store), diff algorithms
+// and display helpers.
+
+import { useAuthStore } from './auth'
 
 // ---------- Types ----------
 
@@ -51,48 +54,18 @@ const env = (import.meta as unknown as { env?: Record<string, unknown> }).env
 const rawBase = env && typeof env.VITE_API_URL === 'string' ? env.VITE_API_URL : ''
 const API_BASE = rawBase.replace(/\/+$/, '')
 
-const TOKEN_KEYS = ['access_token', 'accessToken', 'auth_token', 'authToken', 'token', 'jwt']
-const TOKEN_CONTAINER_KEYS = ['auth', 'authState', 'session', 'user']
-
-function extractToken(raw: string | null): string | null {
-    if (!raw) return null
-    if (raw.startsWith('{')) {
-        try {
-            const parsed = JSON.parse(raw) as Record<string, unknown>
-            for (const key of ['access_token', 'accessToken', 'token', 'jwt']) {
-                const value = parsed[key]
-                if (typeof value === 'string' && value.length > 0) return value
-            }
-            return null
-        } catch {
-            return null
-        }
-    }
-    return raw
-}
-
 /**
- * Best-effort discovery of the auth token used by the rest of the app,
- * so this module works standalone regardless of the storage key used.
+ * Auth token read from the application's auth store
+ * (frontend/src/lib/auth.ts) so the history feature shares the exact same
+ * session handling as the rest of the app.
  */
 export function getAuthToken(): string | null {
     try {
-        for (const key of TOKEN_KEYS) {
-            const token = extractToken(localStorage.getItem(key))
-            if (token) return token
-        }
-        for (const key of TOKEN_CONTAINER_KEYS) {
-            const token = extractToken(localStorage.getItem(key))
-            if (token) return token
-        }
-        for (const key of TOKEN_KEYS) {
-            const token = extractToken(sessionStorage.getItem(key))
-            if (token) return token
-        }
+        const token = useAuthStore.getState().accessToken
+        return typeof token === 'string' && token.length > 0 ? token : null
     } catch {
-        /* storage unavailable */
+        return null
     }
-    return null
 }
 
 async function historyFetch<T>(path: string, init?: RequestInit): Promise<T> {
