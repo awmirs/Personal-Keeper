@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react'
 import { Download, Plus, Search, Upload } from 'lucide-react'
-import { exportItems, importItems, parseImportedFile } from '../../lib/importExport'
+import { classifyImportedItems, exportItems, isImportSupported, parseImportedFile, runImport } from '../../lib/importExport'
+import type { ImportItem, ImportResult, ImportStrategy } from '../../lib/importExport'
+import ImportReviewModal from '../ImportReviewModal'
 import LoadingSpinner from '../LoadingSpinner'
 import ViewSwitcher from '../ViewSwitcher'
 import ListView from '../views/ListView'
@@ -52,8 +54,10 @@ export default function VaultLayout<T>({
     const view = useViewStore((s) => (s.views[vaultKey] || 'list') as ViewType)
 
     const [exportOpen, setExportOpen] = useState(false)
-    const [importing, setImporting] = useState(false)
-    const [importStatus, setImportStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+    const [importReview, setImportReview] = useState<ImportItem[] | null>(null)
+    const [importBusy, setImportBusy] = useState(false)
+    const [importResult, setImportResult] = useState<ImportResult | null>(null)
+    const [importError, setImportError] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const handleExport = (format: 'json' | 'csv' | 'md') => {
@@ -62,34 +66,49 @@ export default function VaultLayout<T>({
     }
 
     const handleImportFile = async (file: File) => {
-        setImporting(true)
-        setImportStatus(null)
+        setImportError(null)
+        setImportResult(null)
+        if (!isImportSupported(vaultKey)) {
+            setImportError(
+                'Import is not available for the Credentials vault: secrets are stored encrypted and cannot be re-imported through the API.'
+            )
+            return
+        }
         try {
             const parsed = await parseImportedFile(file)
             if (parsed.length === 0) {
-                setImportStatus({ kind: 'error', text: 'No items found in the selected file.' })
+                setImportError('No items found in the selected file.')
                 return
             }
-            const { imported, failed } = await importItems(vaultKey, parsed)
-            if (imported > 0 && failed === 0) {
-                setImportStatus({
-                    kind: 'ok',
-                    text: `Imported ${imported} item${imported === 1 ? '' : 's'}. Reloading…`,
-                })
-                window.setTimeout(() => window.location.reload(), 700)
-            } else if (imported > 0) {
-                setImportStatus({
-                    kind: 'error',
-                    text: `Imported ${imported} item${imported === 1 ? '' : 's'}, but ${failed} failed.`,
-                })
-            } else {
-                setImportStatus({ kind: 'error', text: 'Import failed — no items were created.' })
-            }
+            setImportReview(classifyImportedItems(vaultKey, parsed, items as unknown as Record<string, unknown>[]))
         } catch (err) {
-            setImportStatus({ kind: 'error', text: err instanceof Error ? err.message : 'Import failed.' })
-        } finally {
-            setImporting(false)
+            setImportError(err instanceof Error ? err.message : 'Could not read the selected file.')
         }
+    }
+
+    const handleConfirmImport = async (strategy: ImportStrategy, selectedKeys: string[]) => {
+        if (!importReview) return
+        const keySet = new Set(selectedKeys)
+        const selected = importReview.filter((entry) => keySet.has(entry.key))
+        if (selected.length === 0) return
+        setImportBusy(true)
+        setImportError(null)
+        try {
+            const result = await runImport(vaultKey, selected, strategy)
+            setImportResult(result)
+        } catch (err) {
+            setImportError(err instanceof Error ? err.message : 'Import failed.')
+        } finally {
+            setImportBusy(false)
+        }
+    }
+
+    const handleFinishImport = () => {
+        const changed = (importResult?.created ?? 0) > 0 || (importResult?.replaced ?? 0) > 0
+        setImportReview(null)
+        setImportResult(null)
+        setImportError(null)
+        if (changed) window.location.reload()
     }
 
     return (
@@ -139,16 +158,16 @@ export default function VaultLayout<T>({
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={importing}
-                        title="Import items from a JSON or CSV file"
+                        disabled={importBusy}
+                        title="Import items from a JSON, CSV or Markdown file"
                         className="flex items-center gap-2 rounded bg-gray-200 px-4 py-2 dark:bg-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
                     >
-                        <Upload size={16} /> {importing ? 'Importing…' : 'Import'}
+                        <Upload size={16} /> {importBusy ? 'Importing…' : 'Import'}
                     </button>
                     <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".json,.csv"
+                        accept=".json,.csv,.md,.markdown"
                         className="hidden"
                         onChange={(e) => {
                             const file = e.target.files?.[0]
@@ -160,10 +179,8 @@ export default function VaultLayout<T>({
                 </div>
             </div>
 
-            {importStatus && (
-                <p className={`mb-4 text-sm ${importStatus.kind === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                    {importStatus.text}
-                </p>
+            {importError && !importReview && (
+                <p className="mb-4 text-sm text-red-500">{importError}</p>
             )}
 
             <div className="relative mb-4">
@@ -190,6 +207,23 @@ export default function VaultLayout<T>({
             {view === 'compact' && <CompactListView items={items} renderItem={renderItem} />}
 
             {detailModal}
+
+            {importReview && (
+                <ImportReviewModal
+                    vaultTitle={title}
+                    items={importReview}
+                    busy={importBusy}
+                    result={importResult}
+                    error={importError}
+                    onCancel={() => {
+                        setImportReview(null)
+                        setImportResult(null)
+                        setImportError(null)
+                    }}
+                    onConfirm={handleConfirmImport}
+                    onFinish={handleFinishImport}
+                />
+            )}
         </div>
     )
 }
