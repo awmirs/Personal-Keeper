@@ -423,3 +423,53 @@ impl HistoryRepository {
         .await
     }
 }
+
+#[async_trait::async_trait]
+impl domain::traits::history::HistoryRepository for HistoryRepository {
+    async fn list_versions(
+        &self,
+        user_id: &str,
+        item_type: &str,
+        item_id: &str,
+    ) -> Result<Vec<ItemVersion>, CoreError> {
+        HistoryRepository::list_versions(self, user_id, item_type, item_id).await
+    }
+
+    async fn get_version(
+        &self,
+        user_id: &str,
+        item_type: &str,
+        item_id: &str,
+        version: i64,
+    ) -> Result<ItemVersion, CoreError> {
+        HistoryRepository::get_version(self, user_id, item_type, item_id, version).await
+    }
+
+    async fn recent_activity(
+        &self,
+        user_id: &str,
+        item_type: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<ItemVersion>, CoreError> {
+        HistoryRepository::recent_activity(self, user_id, item_type, limit).await
+    }
+
+    async fn restore_version(
+        &self,
+        user_id: &str,
+        item_type: &str,
+        item_id: &str,
+        version: i64,
+    ) -> Result<ItemVersion, CoreError> {
+        HistoryRepository::restore_version(self, user_id, item_type, item_id, version).await
+    }
+
+    async fn purge_history(
+        &self,
+        user_id: &str,
+        item_type: &str,
+        item_id: &str,
+    ) -> Result<u64, CoreError> {
+        HistoryRepository::purge_history(self, user_id, item_type, item_id).await
+    }
+}

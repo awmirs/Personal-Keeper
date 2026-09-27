@@ -176,4 +176,16 @@ impl Repository<Bookmark> for BookmarkRepository {
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
+
+    async fn get_next_position(&self, user_id: &str) -> Result<f64, CoreError> {
+        BookmarkRepository::get_next_position(self, user_id).await
+    }
+
+    async fn update_positions(
+        &self,
+        user_id: &str,
+        positions: &[(uuid::Uuid, f64)],
+    ) -> Result<(), CoreError> {
+        BookmarkRepository::update_positions(self, user_id, positions).await
+    }
 }

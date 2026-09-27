@@ -1,12 +1,12 @@
 use actix_web::{web, HttpResponse};
 use domain::models::todo::Todo;
-use domain::traits::repository::Repository;
 use crate::AppState;
 use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 use crate::routes::import_common::{
     fill_import_defaults, ImportSpec, ImportStrategy, ImportSummary,
 };
+#[allow(unused_imports)]
 pub use crate::routes::dto::{PositionEntry, ReorderRequest};
 
 const TODO_IMPORT_SPEC: ImportSpec = ImportSpec {

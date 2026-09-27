@@ -1,5 +1,4 @@
 use actix_web::{web, HttpResponse};
-use domain::traits::repository::Repository;
 use crate::AppState;
 use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;

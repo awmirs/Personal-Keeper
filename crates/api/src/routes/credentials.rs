@@ -1,6 +1,5 @@
 use actix_web::{web, HttpResponse};
 use domain::models::credential::{Credential, EncryptedData};
-use domain::traits::repository::Repository;
 use crypto::vault::{derive_key, encrypt_bytes, decrypt_bytes, MasterKey};
 use crypto::hash::{hash_password, verify_password};
 use crate::AppState;

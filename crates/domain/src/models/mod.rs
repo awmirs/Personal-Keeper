@@ -6,3 +6,4 @@ pub mod contact;
 pub mod bookmark;
 pub mod todo;
 pub mod history;
+pub mod user;

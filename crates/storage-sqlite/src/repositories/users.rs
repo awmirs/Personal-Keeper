@@ -4,20 +4,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
-pub struct User {
-    pub id: String,
-    pub username: String,
-    pub password_hash: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct RefreshToken {
-    pub id: String,
-    pub user_id: String,
-    pub token: String,
-    pub expires_at: i64,
-}
+pub use domain::models::user::{RefreshToken, User};
 
 pub struct UserRepository {
     pool: Arc<Pool<SqliteConnectionManager>>,
@@ -168,5 +155,44 @@ impl UserRepository {
         })
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?
+    }
+}
+
+#[async_trait::async_trait]
+impl domain::traits::user::UserRepository for UserRepository {
+    async fn create_user(
+        &self,
+        username: &str,
+        password_hash: &str,
+    ) -> Result<User, CoreError> {
+        UserRepository::create_user(self, username, password_hash).await
+    }
+
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
+        UserRepository::find_by_username(self, username).await
+    }
+
+    async fn find_by_id(&self, id: &str) -> Result<Option<User>, CoreError> {
+        UserRepository::find_by_id(self, id).await
+    }
+
+    async fn store_refresh_token(
+        &self,
+        user_id: &str,
+        token: &str,
+        expires_at: i64,
+    ) -> Result<(), CoreError> {
+        UserRepository::store_refresh_token(self, user_id, token, expires_at).await
+    }
+
+    async fn find_by_refresh_token(
+        &self,
+        token: &str,
+    ) -> Result<Option<RefreshToken>, CoreError> {
+        UserRepository::find_by_refresh_token(self, token).await
+    }
+
+    async fn delete_refresh_token(&self, token: &str) -> Result<(), CoreError> {
+        UserRepository::delete_refresh_token(self, token).await
     }
 }

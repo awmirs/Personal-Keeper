@@ -22,14 +22,14 @@ use crate::routes::auth;
 use crate::routes::credentials::VaultSession;
 
 struct AppState {
-    notes_repo: Arc<NoteRepository>,
-    clipboard_repo: Arc<ClipboardRepository>,
-    pub todo_repo: Arc<TodoRepository>,
-    pub bookmark_repo: Arc<BookmarkRepository>,
-    pub contact_repo: Arc<ContactRepository>,
-    pub credential_repo: Arc<CredentialRepository>,
-    pub credential_config_repo: Arc<CredentialConfigRepository>,
-    pub user_repo: Arc<UserRepository>,
+    notes_repo: Arc<dyn domain::traits::repository::Repository<domain::models::note::Note>>,
+    clipboard_repo: Arc<dyn domain::traits::repository::Repository<domain::models::clipboard::ClipboardItem>>,
+    pub todo_repo: Arc<dyn domain::traits::repository::Repository<domain::models::todo::Todo>>,
+    pub bookmark_repo: Arc<dyn domain::traits::repository::Repository<domain::models::bookmark::Bookmark>>,
+    pub contact_repo: Arc<dyn domain::traits::repository::Repository<domain::models::contact::Contact>>,
+    pub credential_repo: Arc<dyn domain::traits::repository::Repository<domain::models::credential::Credential>>,
+    pub credential_config_repo: Arc<dyn domain::traits::credential_config::CredentialConfigRepository>,
+    pub user_repo: Arc<dyn domain::traits::user::UserRepository>,
     /// Derived vault keys, keyed by user ID. Async mutex because the
     /// guarded map is touched from async handlers and a `std::sync::Mutex`
     /// would block the Actix worker if the critical section ever awaited.
@@ -37,7 +37,7 @@ struct AppState {
     /// Idle timeout after which a user's unlocked vault re-locks itself.
     /// Read once from `VAULT_AUTO_LOCK_SECS`; default 15 minutes.
     pub vault_auto_lock: std::time::Duration,
-    pub history_repo: storage_sqlite::repositories::history::HistoryRepository,
+    pub history_repo: Arc<dyn domain::traits::history::HistoryRepository>,
 }
 
 
@@ -54,14 +54,22 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to run migrations");
 
     let pool_clone = pool.clone();
-    let notes_repo = Arc::new(NoteRepository::new(Arc::new(pool.clone())));
-    let clipboard_repo = Arc::new(ClipboardRepository::new(Arc::new(pool.clone())));
-    let user_repo = Arc::new(UserRepository::new(Arc::new(pool_clone)));
-    let todo_repo = Arc::new(TodoRepository::new(Arc::new(pool.clone())));
-    let bookmark_repo = Arc::new(BookmarkRepository::new(Arc::new(pool.clone())));
-    let contact_repo = Arc::new(ContactRepository::new(Arc::new(pool.clone())));
-    let credential_config_repo = Arc::new(CredentialConfigRepository::new(Arc::new(pool.clone())));
-    let credential_repo = Arc::new(CredentialRepository::new(Arc::new(pool.clone())));
+    let notes_repo: Arc<dyn domain::traits::repository::Repository<domain::models::note::Note>> =
+        Arc::new(NoteRepository::new(Arc::new(pool.clone())));
+    let clipboard_repo: Arc<dyn domain::traits::repository::Repository<domain::models::clipboard::ClipboardItem>> =
+        Arc::new(ClipboardRepository::new(Arc::new(pool.clone())));
+    let user_repo: Arc<dyn domain::traits::user::UserRepository> =
+        Arc::new(UserRepository::new(Arc::new(pool_clone)));
+    let todo_repo: Arc<dyn domain::traits::repository::Repository<domain::models::todo::Todo>> =
+        Arc::new(TodoRepository::new(Arc::new(pool.clone())));
+    let bookmark_repo: Arc<dyn domain::traits::repository::Repository<domain::models::bookmark::Bookmark>> =
+        Arc::new(BookmarkRepository::new(Arc::new(pool.clone())));
+    let contact_repo: Arc<dyn domain::traits::repository::Repository<domain::models::contact::Contact>> =
+        Arc::new(ContactRepository::new(Arc::new(pool.clone())));
+    let credential_config_repo: Arc<dyn domain::traits::credential_config::CredentialConfigRepository> =
+        Arc::new(CredentialConfigRepository::new(Arc::new(pool.clone())));
+    let credential_repo: Arc<dyn domain::traits::repository::Repository<domain::models::credential::Credential>> =
+        Arc::new(CredentialRepository::new(Arc::new(pool.clone())));
     // Idle timeout for unlocked vault sessions. A missing or unparsable
     // value silently falls back to the default so a misconfiguration can
     // never prevent the server from starting.
@@ -73,6 +81,8 @@ async fn main() -> std::io::Result<()> {
 
     let master_keys = Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()));
 
+    let history_repo: Arc<dyn domain::traits::history::HistoryRepository> =
+        Arc::new(storage_sqlite::repositories::history::HistoryRepository::new(Arc::new(pool.clone())));
 
     let app_state = web::Data::new(AppState {
         notes_repo,
@@ -85,7 +95,7 @@ async fn main() -> std::io::Result<()> {
         credential_repo,
         master_keys,
         vault_auto_lock,
-        history_repo: storage_sqlite::repositories::history::HistoryRepository::new(Arc::new(pool.clone())),
+        history_repo,
     });
 
     println!("Server running on http://0.0.0.0:8080");

@@ -72,3 +72,22 @@ impl CredentialConfigRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 }
+
+#[async_trait::async_trait]
+impl domain::traits::credential_config::CredentialConfigRepository for CredentialConfigRepository {
+    async fn set_master_password(
+        &self,
+        user_id: &str,
+        password_hash: &str,
+        salt: &[u8],
+    ) -> Result<(), CoreError> {
+        CredentialConfigRepository::set_master_password(self, user_id, password_hash, salt).await
+    }
+
+    async fn get_master_password(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<(String, Vec<u8>)>, CoreError> {
+        CredentialConfigRepository::get_master_password(self, user_id).await
+    }
+}
