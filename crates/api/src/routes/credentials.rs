@@ -1,11 +1,38 @@
 use actix_web::{web, HttpResponse};
-use domain::models::credential::Credential;
+use domain::models::credential::{Credential, EncryptedData};
 use domain::traits::repository::Repository;
 use crypto::vault::{derive_key, encrypt_bytes, decrypt_bytes, MasterKey};
 use crypto::hash::{hash_password, verify_password};
 use crate::AppState;
 use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
+
+/// Encrypt a single credential field, turning any crypto failure into a
+/// 500 that names the field. Used by both create and update paths so a
+/// failure to encrypt can never be persisted as `None` (which would look
+/// to the user like "no password was ever set").
+fn encrypt_field(
+    plaintext: &str,
+    key: &[u8; 32],
+    field: &str,
+) -> Result<EncryptedData, ApiError> {
+    encrypt_bytes(plaintext.as_bytes(), key)
+        .map_err(|e| ApiError::Internal(format!("Failed to encrypt {}: {}", field, e)))
+}
+
+/// Decrypt a single credential field, turning any crypto failure into a
+/// 500 that names the field. Returning a partial body (some fields
+/// decrypted, others silently omitted) would mislead the caller into
+/// thinking the missing secret does not exist.
+fn decrypt_field(
+    data: &EncryptedData,
+    key: &[u8; 32],
+    field: &str,
+) -> Result<String, ApiError> {
+    decrypt_bytes(data, key)
+        .map_err(|e| ApiError::Internal(format!("Failed to decrypt {}: {}", field, e)))
+        .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
+}
 
 // ========== Unlock/Lock ==========
 
@@ -99,14 +126,29 @@ pub async fn create_credential(
     let key = get_key(&user, &data).ok_or_else(|| ApiError::Unauthorized("Vault locked".to_string()))?;
     let next_pos = data.credential_repo.get_next_position(&user.user_id).await?;
 
+    // Crypto failures must abort the request: silently storing `None` here
+    // would persist a credential with no password / notes / TOTP secret.
+    let password_encrypted = match &body.password {
+        Some(p) => Some(encrypt_field(p, &key.0, "password")?),
+        None => None,
+    };
+    let notes_encrypted = match &body.notes {
+        Some(n) => Some(encrypt_field(n, &key.0, "notes")?),
+        None => None,
+    };
+    let totp_secret_encrypted = match &body.totp_secret {
+        Some(t) => Some(encrypt_field(t, &key.0, "TOTP secret")?),
+        None => None,
+    };
+
     let mut cred = Credential {
         meta: Default::default(),
         website: body.website.clone(),
         url: body.url.clone().unwrap_or_default(),
         username: body.username.clone(),
-        password_encrypted: body.password.as_ref().and_then(|p| encrypt_bytes(p.as_bytes(), &key.0).ok()),
-        notes_encrypted: body.notes.as_ref().and_then(|n| encrypt_bytes(n.as_bytes(), &key.0).ok()),
-        totp_secret_encrypted: body.totp_secret.as_ref().and_then(|t| encrypt_bytes(t.as_bytes(), &key.0).ok()),
+        password_encrypted,
+        notes_encrypted,
+        totp_secret_encrypted,
     };
     cred.meta.position = next_pos;
 
@@ -129,21 +171,21 @@ pub async fn get_credential(
     let cred = data.credential_repo.find_by_id(&user.user_id, &id).await?
         .ok_or_else(|| ApiError::NotFound("Credential not found".to_string()))?;
 
+    // Decryption failures must fail the whole request. Emitting a partial
+    // body (some fields, silently omitting the ones that failed) would
+    // mislead the caller into believing the missing secret does not exist.
     let mut resp = serde_json::json!(cred);
     if let Some(ref enc) = cred.password_encrypted {
-        if let Ok(dec) = decrypt_bytes(enc, &key.0) {
-            resp["password_plain"] = serde_json::Value::String(String::from_utf8_lossy(&dec).to_string());
-        }
+        resp["password_plain"] =
+            serde_json::Value::String(decrypt_field(enc, &key.0, "password")?);
     }
     if let Some(ref enc) = cred.notes_encrypted {
-        if let Ok(dec) = decrypt_bytes(enc, &key.0) {
-            resp["notes_plain"] = serde_json::Value::String(String::from_utf8_lossy(&dec).to_string());
-        }
+        resp["notes_plain"] =
+            serde_json::Value::String(decrypt_field(enc, &key.0, "notes")?);
     }
     if let Some(ref enc) = cred.totp_secret_encrypted {
-        if let Ok(dec) = decrypt_bytes(enc, &key.0) {
-            resp["totp_secret_plain"] = serde_json::Value::String(String::from_utf8_lossy(&dec).to_string());
-        }
+        resp["totp_secret_plain"] =
+            serde_json::Value::String(decrypt_field(enc, &key.0, "TOTP secret")?);
     }
     Ok(HttpResponse::Ok().json(&resp))
 }
@@ -182,16 +224,19 @@ pub async fn update_credential(
         website: body.website.clone().unwrap_or(existing.website),
         url: body.url.clone().unwrap_or(existing.url),
         username: body.username.clone().unwrap_or(existing.username),
+        // Empty or missing input means "keep the existing ciphertext" — a
+        // crypto failure must abort, never silently overwrite either the
+        // new value or the existing one with `None`.
         password_encrypted: match &body.password {
-            Some(p) if !p.is_empty() => encrypt_bytes(p.as_bytes(), &key.0).ok(),
+            Some(p) if !p.is_empty() => Some(encrypt_field(p, &key.0, "password")?),
             _ => existing.password_encrypted,
         },
         notes_encrypted: match &body.notes {
-            Some(n) if !n.is_empty() => encrypt_bytes(n.as_bytes(), &key.0).ok(),
+            Some(n) if !n.is_empty() => Some(encrypt_field(n, &key.0, "notes")?),
             _ => existing.notes_encrypted,
         },
         totp_secret_encrypted: match &body.totp_secret {
-            Some(t) if !t.is_empty() => encrypt_bytes(t.as_bytes(), &key.0).ok(),
+            Some(t) if !t.is_empty() => Some(encrypt_field(t, &key.0, "TOTP secret")?),
             _ => existing.totp_secret_encrypted,
         },
     };
