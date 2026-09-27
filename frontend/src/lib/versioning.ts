@@ -1,9 +1,11 @@
 // frontend/src/lib/versioning.ts
 // Client-side support for the item history / versioning feature:
-// API access (delegates auth to the app's auth store), diff algorithms
-// and display helpers.
+// API access through the shared axios client (so a 401 triggers the same
+// silent token refresh as the rest of the app), diff algorithms and
+// display helpers.
 
-import { useAuthStore } from './auth'
+import axios, { AxiosRequestConfig } from 'axios'
+import api from './api'
 
 // ---------- Types ----------
 
@@ -50,47 +52,40 @@ export interface ActivityEntry {
 
 // ---------- API ----------
 
-const env = (import.meta as unknown as { env?: Record<string, unknown> }).env
-const rawBase = env && typeof env.VITE_API_URL === 'string' ? env.VITE_API_URL : ''
-const API_BASE = rawBase.replace(/\/+$/, '')
-
 /**
- * Auth token read from the application's auth store
- * (frontend/src/lib/auth.ts) so the history feature shares the exact same
- * session handling as the rest of the app.
+ * Thin wrapper over the shared axios client. Using `api` (instead of raw
+ * `fetch`) means history requests inherit the app's authentication
+ * pipeline: the request interceptor attaches the access token, and the
+ * response interceptor transparently refreshes it on 401 and retries.
+ *
+ * `path` is relative to the `/api` baseURL configured in `./api.ts`, so
+ * callers pass `/history/...` rather than `/api/history/...`. Axios errors
+ * are converted to a plain `Error` carrying the server's `error` message
+ * (falling back to the HTTP status text) so existing call sites that read
+ * `err.message` keep showing the same user-visible text.
  */
-export function getAuthToken(): string | null {
+async function historyFetch<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
     try {
-        const token = useAuthStore.getState().accessToken
-        return typeof token === 'string' && token.length > 0 ? token : null
-    } catch {
-        return null
-    }
-}
-
-async function historyFetch<T>(path: string, init?: RequestInit): Promise<T> {
-    const headers: Record<string, string> = {}
-    if (init?.body != null) headers['Content-Type'] = 'application/json'
-    const token = getAuthToken()
-    if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`
-    const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
-    if (!response.ok) {
-        let message = `${response.status} ${response.statusText}`
-        try {
-            const body = (await response.json()) as { error?: string }
-            if (body && body.error) message = body.error
-        } catch {
-            /* non-JSON error body */
+        const response = await api.request<T>({ ...config, url: path })
+        return response.data
+    } catch (err) {
+        if (axios.isAxiosError(err)) {
+            const data = err.response?.data as { error?: string } | undefined
+            const message =
+                data && typeof data.error === 'string'
+                    ? data.error
+                    : err.response
+                      ? `${err.response.status} ${err.response.statusText}`
+                      : err.message
+            throw new Error(message)
         }
-        throw new Error(message)
+        throw err
     }
-    if (response.status === 204) return undefined as T
-    return (await response.json()) as T
 }
 
 export async function listVersions(itemType: string, itemId: string): Promise<ItemVersion[]> {
     return historyFetch<ItemVersion[]>(
-        `/api/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}`,
+        `/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}`,
     )
 }
 
@@ -100,7 +95,7 @@ export async function getVersion(
     version: number,
 ): Promise<ItemVersion> {
     return historyFetch<ItemVersion>(
-        `/api/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/versions/${version}`,
+        `/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/versions/${version}`,
     )
 }
 
@@ -111,7 +106,7 @@ export async function getDiff(
     versionB: number,
 ): Promise<VersionDiff> {
     return historyFetch<VersionDiff>(
-        `/api/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/diff/${versionA}/${versionB}`,
+        `/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/diff/${versionA}/${versionB}`,
     )
 }
 
@@ -121,14 +116,14 @@ export async function restoreVersion(
     version: number,
 ): Promise<ItemVersion> {
     return historyFetch<ItemVersion>(
-        `/api/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/versions/${version}/restore`,
+        `/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/versions/${version}/restore`,
         { method: 'POST' },
     )
 }
 
 export async function purgeHistory(itemType: string, itemId: string): Promise<{ purged: number }> {
     return historyFetch<{ purged: number }>(
-        `/api/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}`,
+        `/history/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}`,
         { method: 'DELETE' },
     )
 }
@@ -141,7 +136,7 @@ export async function recentActivity(options?: {
     if (options && options.limit != null) params.set('limit', String(options.limit))
     if (options && options.itemType) params.set('item_type', options.itemType)
     const suffix = params.toString() ? `?${params.toString()}` : ''
-    return historyFetch<ActivityEntry[]>(`/api/history/recent${suffix}`)
+    return historyFetch<ActivityEntry[]>(`/history/recent${suffix}`)
 }
 
 // ---------- Line diff (LCS) ----------
