@@ -49,10 +49,24 @@ where
 
         match auth_header {
             Some(token) => match verify_token(token) {
-                Ok(claims) => {
+                // Only access tokens may authenticate requests. Without this
+                // guard a refresh token (a signature-valid JWT with
+                // `token_type = "refresh"`) would be accepted as a Bearer
+                // credential on every protected `/api/*` route, defeating
+                // the access/refresh split. The 401 body stays identical to
+                // the invalid/expired-token case so a caller cannot learn
+                // whether their token was merely wrong-typed or invalid.
+                Ok(claims) if claims.token_type == "access" => {
                     req.extensions_mut().insert(claims);
                     let fut = self.service.call(req);
                     Box::pin(async move { fut.await })
+                }
+                Ok(_) => {
+                    let (req, _) = req.into_parts();
+                    let response = HttpResponse::Unauthorized()
+                        .json(serde_json::json!({ "error": "Invalid or expired token" }))
+                        .map_into_boxed_body();
+                    Box::pin(async { Ok(ServiceResponse::new(req, response)) })
                 }
                 Err(_) => {
                     let (req, _) = req.into_parts();
