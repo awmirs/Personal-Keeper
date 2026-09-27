@@ -8,3 +8,5 @@ pub mod contacts;
 pub mod credentials;
 pub mod search;
 pub mod history;
+pub mod dto;
+pub mod import_common;
