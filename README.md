@@ -264,7 +264,8 @@ Every vault item — notes, clipboard entries, todos, bookmarks, contacts and cr
 
 ### How it works
 
-- SQLite triggers (migration `V10__item_history.sql`) snapshot every change automatically — no vault repository code was modified.
+- SQLite triggers (migration `V10__item_history.sql`) snapshot every change automatically. Repository `save()` calls use `INSERT ... ON CONFLICT(id) DO UPDATE SET ...` (never `INSERT OR REPLACE`) so the `AFTER UPDATE OF` triggers fire on edits and each edit is recorded with the correct `updated` operation instead of a spurious `deleted` + `created` pair.
+- **Do not reintroduce `INSERT OR REPLACE`** against `notes`, `clipboard_items`, `todos`, `bookmarks`, `contacts`, or `credentials`: it would silently disable the edit-history path.
 - Version numbers are per item and monotonically increasing (`1, 2, 3, …`).
 - Existing rows received a baseline `created` version when the migration ran.
 - Restores are themselves recorded as a new `restored` version; restoring a hard-deleted item resurrects it.

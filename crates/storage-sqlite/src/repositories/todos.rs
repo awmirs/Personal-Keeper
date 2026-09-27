@@ -45,10 +45,28 @@ impl Repository<Todo> for TodoRepository {
         let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<(), CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
+            // V10 history triggers need UPDATE to fire on edits. INSERT OR
+            // REPLACE deletes + reinserts, mislabelling every edit as
+            // deleted + created in item_versions. ON CONFLICT DO UPDATE fires
+            // the AFTER UPDATE OF trigger with the correct `updated` operation.
             conn.execute(
-                "INSERT OR REPLACE INTO todos
+                "INSERT INTO todos
                  (id, user_id, title, description, completed, due_date, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                 ON CONFLICT(id) DO UPDATE SET
+                     user_id = excluded.user_id,
+                     title = excluded.title,
+                     description = excluded.description,
+                     completed = excluded.completed,
+                     due_date = excluded.due_date,
+                     tags = excluded.tags,
+                     color_name = excluded.color_name,
+                     color_hex = excluded.color_hex,
+                     is_favorite = excluded.is_favorite,
+                     trash_status = excluded.trash_status,
+                     created_at = excluded.created_at,
+                     updated_at = excluded.updated_at,
+                     position = excluded.position",
                 params![
                     item.meta.id.to_string(),
                     user_id,

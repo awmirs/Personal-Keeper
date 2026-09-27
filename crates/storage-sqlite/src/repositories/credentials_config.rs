@@ -26,8 +26,14 @@ impl CredentialConfigRepository {
         let salt = salt.to_vec();
         tokio::task::spawn_blocking(move || {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
+            // credentials_config is not history-tracked, but upsert semantics
+            // are kept consistent across every repository to avoid
+            // reintroducing INSERT OR REPLACE on history-tracked tables.
             conn.execute(
-                "INSERT OR REPLACE INTO credentials_config (user_id, password_hash, salt) VALUES (?1, ?2, ?3)",
+                "INSERT INTO credentials_config (user_id, password_hash, salt) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(user_id) DO UPDATE SET
+                     password_hash = excluded.password_hash,
+                     salt = excluded.salt",
                 params![user_id, password_hash, salt],
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
