@@ -5,7 +5,7 @@ mod error;
 
 use actix_web::{web, App, HttpServer};
 use actix_files::Files;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use storage_sqlite::migrations::run_migrations;
 use storage_sqlite::pool::create_pool;
@@ -19,6 +19,7 @@ use storage_sqlite::repositories::credentials::CredentialRepository;
 use storage_sqlite::repositories::credentials_config::CredentialConfigRepository;
 use crate::middleware::auth::Authenticated;
 use crate::routes::auth;
+use crate::routes::credentials::VaultSession;
 
 struct AppState {
     notes_repo: Arc<NoteRepository>,
@@ -29,7 +30,13 @@ struct AppState {
     pub credential_repo: Arc<CredentialRepository>,
     pub credential_config_repo: Arc<CredentialConfigRepository>,
     pub user_repo: Arc<UserRepository>,
-    pub master_keys: Arc<Mutex<std::collections::HashMap<String, crypto::vault::MasterKey>>>,   // derived keys per user ID
+    /// Derived vault keys, keyed by user ID. Async mutex because the
+    /// guarded map is touched from async handlers and a `std::sync::Mutex`
+    /// would block the Actix worker if the critical section ever awaited.
+    pub master_keys: Arc<tokio::sync::Mutex<std::collections::HashMap<String, VaultSession>>>,
+    /// Idle timeout after which a user's unlocked vault re-locks itself.
+    /// Read once from `VAULT_AUTO_LOCK_SECS`; default 15 minutes.
+    pub vault_auto_lock: std::time::Duration,
     pub history_repo: storage_sqlite::repositories::history::HistoryRepository,
 }
 
@@ -55,7 +62,16 @@ async fn main() -> std::io::Result<()> {
     let contact_repo = Arc::new(ContactRepository::new(Arc::new(pool.clone())));
     let credential_config_repo = Arc::new(CredentialConfigRepository::new(Arc::new(pool.clone())));
     let credential_repo = Arc::new(CredentialRepository::new(Arc::new(pool.clone())));
-    let master_keys = Arc::new(Mutex::new(std::collections::HashMap::new()));
+    // Idle timeout for unlocked vault sessions. A missing or unparsable
+    // value silently falls back to the default so a misconfiguration can
+    // never prevent the server from starting.
+    let vault_auto_lock = std::env::var("VAULT_AUTO_LOCK_SECS")
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .map(std::time::Duration::from_secs)
+        .unwrap_or_else(|| std::time::Duration::from_secs(900));
+
+    let master_keys = Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()));
 
 
     let app_state = web::Data::new(AppState {
@@ -68,6 +84,7 @@ async fn main() -> std::io::Result<()> {
         credential_config_repo,
         credential_repo,
         master_keys,
+        vault_auto_lock,
         history_repo: storage_sqlite::repositories::history::HistoryRepository::new(Arc::new(pool.clone())),
     });
 

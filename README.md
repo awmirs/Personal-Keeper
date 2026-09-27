@@ -165,6 +165,7 @@ All configuration is done via environment variables. For convenience, create a `
 | Variable     | Description                             | Default                      |
 |--------------|-----------------------------------------|------------------------------|
 | `JWT_SECRET` | Secret key for signing JWT tokens       | `dev-secret-not-for-production` |
+| `VAULT_AUTO_LOCK_SECS` | Idle seconds before an unlocked Credentials vault re-locks itself | `900` |
 
 The SQLite database is stored at `data/personal-keeper.db` (created automatically).
 

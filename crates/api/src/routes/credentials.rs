@@ -7,6 +7,14 @@ use crate::AppState;
 use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 
+/// One user's unlocked vault: the derived key plus the time of its last
+/// use. `last_used` drives the idle-timeout auto-lock in `get_key`. The
+/// key is zeroized on drop via `MasterKey`'s `ZeroizeOnDrop` derive.
+pub struct VaultSession {
+    pub key: MasterKey,
+    pub last_used: std::time::Instant,
+}
+
 /// Encrypt a single credential field, turning any crypto failure into a
 /// 500 that names the field. Used by both create and update paths so a
 /// failure to encrypt can never be persisted as `None` (which would look
@@ -66,7 +74,13 @@ pub async fn unlock(
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
             data.credential_config_repo.set_master_password(&user.user_id, &password_hash, &salt).await?;
             let key = derive_key(&body.master_password, &salt);
-            data.master_keys.lock().unwrap().insert(user.user_id.clone(), key);
+            data.master_keys.lock().await.insert(
+                user.user_id.clone(),
+                VaultSession {
+                    key,
+                    last_used: std::time::Instant::now(),
+                },
+            );
             return Ok(HttpResponse::Ok().json(UnlockResponse { status: "master_password_set".to_string() }));
         }
     };
@@ -76,7 +90,13 @@ pub async fn unlock(
     }
 
     let key = derive_key(&body.master_password, &config.1);
-    data.master_keys.lock().unwrap().insert(user.user_id.clone(), key);
+    data.master_keys.lock().await.insert(
+        user.user_id.clone(),
+        VaultSession {
+            key,
+            last_used: std::time::Instant::now(),
+        },
+    );
 
     Ok(HttpResponse::Ok().json(UnlockResponse { status: "unlocked".to_string() }))
 }
@@ -85,15 +105,35 @@ pub async fn lock(
     user: AuthUser,
     data: web::Data<AppState>,
 ) -> Result<HttpResponse, ApiError> {
-    data.master_keys.lock().unwrap().remove(&user.user_id);
+    data.master_keys.lock().await.remove(&user.user_id);
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "locked" })))
 }
 
 // ========== CRUD (requires unlock) ==========
 
-fn get_key(user: &AuthUser, data: &web::Data<AppState>) -> Option<MasterKey> {
-    let keys = data.master_keys.lock().unwrap();
-    keys.get(&user.user_id).cloned()
+/// Fetch this user's vault key if their session is still valid. The
+/// session expires after `AppState::vault_auto_lock` of inactivity; on
+/// expiry the key is dropped (zeroized) and `None` is returned, which
+/// callers translate into a 401 "Vault locked". Uses an async mutex so
+/// the critical section can never block the Actix worker thread, and so
+/// it cannot poison on a panic in another task.
+async fn get_key(user: &AuthUser, data: &web::Data<AppState>) -> Option<MasterKey> {
+    let mut keys = data.master_keys.lock().await;
+
+    // Missing or expired session -> treat as locked.
+    let expired = match keys.get(&user.user_id) {
+        Some(entry) => entry.last_used.elapsed() >= data.vault_auto_lock,
+        None => return None,
+    };
+    if expired {
+        keys.remove(&user.user_id);
+        return None;
+    }
+
+    // Refresh the idle timer and hand the caller a copy of the key.
+    let entry = keys.get_mut(&user.user_id)?;
+    entry.last_used = std::time::Instant::now();
+    Some(entry.key.clone())
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
@@ -123,7 +163,7 @@ pub async fn create_credential(
     data: web::Data<AppState>,
     body: web::Json<CreateCredentialRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    let key = get_key(&user, &data).ok_or_else(|| ApiError::Unauthorized("Vault locked".to_string()))?;
+    let key = get_key(&user, &data).await.ok_or_else(|| ApiError::Unauthorized("Vault locked".to_string()))?;
     let next_pos = data.credential_repo.get_next_position(&user.user_id).await?;
 
     // Crypto failures must abort the request: silently storing `None` here
@@ -166,7 +206,7 @@ pub async fn get_credential(
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-    let key = get_key(&user, &data).ok_or_else(|| ApiError::Unauthorized("Vault locked".to_string()))?;
+    let key = get_key(&user, &data).await.ok_or_else(|| ApiError::Unauthorized("Vault locked".to_string()))?;
     let id = path.into_inner();
     let cred = data.credential_repo.find_by_id(&user.user_id, &id).await?
         .ok_or_else(|| ApiError::NotFound("Credential not found".to_string()))?;
@@ -195,7 +235,7 @@ pub async fn delete_credential(
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-    if get_key(&user, &data).is_none() {
+    if get_key(&user, &data).await.is_none() {
         return Err(ApiError::Unauthorized("Vault locked".to_string()));
     }
     data.credential_repo.delete(&user.user_id, &path.into_inner()).await?;
@@ -208,7 +248,7 @@ pub async fn update_credential(
     path: web::Path<String>,
     body: web::Json<UpdateCredentialRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    let key = get_key(&user, &data).ok_or_else(|| ApiError::Unauthorized("Vault locked".to_string()))?;
+    let key = get_key(&user, &data).await.ok_or_else(|| ApiError::Unauthorized("Vault locked".to_string()))?;
     let id = path.into_inner();
     let existing = data.credential_repo.find_by_id(&user.user_id, &id).await?
         .ok_or_else(|| ApiError::NotFound("Credential not found".to_string()))?;
@@ -263,7 +303,7 @@ pub async fn reorder_credentials(
     data: web::Data<AppState>,
     body: web::Json<ReorderRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    if get_key(&user, &data).is_none() {
+    if get_key(&user, &data).await.is_none() {
         return Err(ApiError::Unauthorized("Vault locked".to_string()));
     }
     let positions: Vec<(uuid::Uuid, f64)> = body
