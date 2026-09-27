@@ -197,7 +197,7 @@ export default function Contacts() {
                       }
                     }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id) }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
-                    <ItemHistoryButton itemType="contact" itemId={String(c.id)} />
+                    <ItemHistoryButton itemType="contact" itemId={String(c.id)} onRestored={fetchContacts} />
                   </div>
                 </div>
               </div>

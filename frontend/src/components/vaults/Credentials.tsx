@@ -285,7 +285,7 @@ export default function Credentials() {
                 >
                     <Trash2 size={20} />
                 </button>
-                <ItemHistoryButton itemType="credential" itemId={String(cred.id)} />
+                <ItemHistoryButton itemType="credential" itemId={String(cred.id)} onRestored={fetchCredentials} />
             </div>
         </div>
     )

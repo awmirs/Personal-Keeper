@@ -164,7 +164,7 @@ export default function Bookmarks() {
                       }
                     }} className="text-gray-400 hover:text-blue-500 p-1"><Edit3 size={20} /></button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(b.id) }} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={20} /></button>
-                    <ItemHistoryButton itemType="bookmark" itemId={String(b.id)} />
+                    <ItemHistoryButton itemType="bookmark" itemId={String(b.id)} onRestored={fetchBookmarks} />
                   </div>
                 </div>
               </div>

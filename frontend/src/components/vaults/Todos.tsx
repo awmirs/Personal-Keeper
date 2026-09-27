@@ -164,7 +164,7 @@ export default function Todos() {
               >
                 <Trash2 size={20} />
               </button>
-              <ItemHistoryButton itemType="todo" itemId={String(todo.id)} />
+              <ItemHistoryButton itemType="todo" itemId={String(todo.id)} onRestored={fetchTodos} />
             </div>
           </div>
           <hr className="my-2 border-gray-200 dark:border-gray-700" />

@@ -47,8 +47,9 @@ export default function Settings() {
                         based on the app theme.
                     </p>
                 </div>
-                            <HistoryActivityFeed limit={30} />
-</div>
+
+                <HistoryActivityFeed limit={30} />
+            </div>
         </div>
     )
 }

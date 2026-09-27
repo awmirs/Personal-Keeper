@@ -160,7 +160,7 @@ export default function Clipboard() {
             >
               <Trash2 size={20} />
             </button>
-            <ItemHistoryButton itemType="clipboard" itemId={String(item.id)} />
+            <ItemHistoryButton itemType="clipboard" itemId={String(item.id)} onRestored={fetchItems} />
           </div>
         </div>
         <p className="text-xs text-gray-400 mt-1">

@@ -204,7 +204,7 @@ export default function Notes() {
                                 <button onClick={(e) => { e.stopPropagation(); handleDelete(note.id) }} className="text-gray-400 hover:text-red-500 p-1">
                                     <Trash2 size={20} />
                                 </button>
-                                <ItemHistoryButton itemType="note" itemId={String(note.id)} />
+                                <ItemHistoryButton itemType="note" itemId={String(note.id)} onRestored={fetchNotes} />
                             </div>
                         </div>
                     </div>
