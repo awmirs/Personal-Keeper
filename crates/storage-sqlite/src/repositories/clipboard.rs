@@ -18,7 +18,7 @@ impl ClipboardRepository {
     crate::repositories::helpers::impl_position_helpers!("clipboard_items");
 }
 
-use super::helpers::parse_item_metadata;
+use super::helpers::{fts5_query, parse_item_metadata};
 
 fn row_to_clipboard(row: &rusqlite::Row) -> Result<ClipboardItem, rusqlite::Error> {
     let content: String = row.get(1)?;
@@ -143,17 +143,23 @@ impl Repository<ClipboardItem> for ClipboardRepository {
     }
 
     async fn search(&self, user_id: &str, query: &str) -> Result<Vec<ClipboardItem>, CoreError> {
+        let fts = fts5_query(query);
+        if fts.is_empty() {
+            return Ok(Vec::new());
+        }
         let pool = Arc::clone(&self.pool);
-        let query = format!("%{}%", query);
         let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<ClipboardItem>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, content, persist_to_disk, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM clipboard_items WHERE user_id = ?1 AND content LIKE ?2 ORDER BY position ASC, id ASC"
+                "SELECT c.id, c.content, c.persist_to_disk, c.tags, c.color_name, c.color_hex, c.is_favorite, c.trash_status, c.created_at, c.updated_at, c.position
+                 FROM clipboard_items c
+                 JOIN clipboard_fts ON clipboard_fts.rowid = c.rowid
+                 WHERE c.user_id = ?1 AND clipboard_fts MATCH ?2
+                 ORDER BY c.position ASC, c.id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, query], row_to_clipboard)
+            let rows = stmt.query_map(params![user_id, fts], row_to_clipboard)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut items = Vec::new();
             for row in rows {

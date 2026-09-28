@@ -18,7 +18,7 @@ impl TodoRepository {
     crate::repositories::helpers::impl_position_helpers!("todos");
 }
 
-use super::helpers::parse_item_metadata;
+use super::helpers::{fts5_query, parse_item_metadata};
 
 fn row_to_todo(row: &rusqlite::Row) -> Result<Todo, rusqlite::Error> {
     let title: String = row.get(1)?;
@@ -151,17 +151,23 @@ impl Repository<Todo> for TodoRepository {
     }
 
     async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Todo>, CoreError> {
+        let fts = fts5_query(query);
+        if fts.is_empty() {
+            return Ok(Vec::new());
+        }
         let pool = Arc::clone(&self.pool);
-        let query = format!("%{}%", query);
         let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<Todo>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, title, description, completed, due_date, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM todos WHERE user_id = ?1 AND (title LIKE ?2 OR description LIKE ?2) ORDER BY position ASC, id ASC"
+                "SELECT t.id, t.title, t.description, t.completed, t.due_date, t.tags, t.color_name, t.color_hex, t.is_favorite, t.trash_status, t.created_at, t.updated_at, t.position
+                 FROM todos t
+                 JOIN todos_fts ON todos_fts.rowid = t.rowid
+                 WHERE t.user_id = ?1 AND todos_fts MATCH ?2
+                 ORDER BY t.position ASC, t.id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, query], row_to_todo)
+            let rows = stmt.query_map(params![user_id, fts], row_to_todo)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut items = Vec::new();
             for row in rows {

@@ -18,7 +18,7 @@ impl ContactRepository {
     crate::repositories::helpers::impl_position_helpers!("contacts");
 }
 
-use super::helpers::parse_item_metadata;
+use super::helpers::{fts5_query, parse_item_metadata};
 
 fn row_to_contact(row: &rusqlite::Row) -> Result<Contact, rusqlite::Error> {
     let name: String = row.get(1)?;
@@ -159,17 +159,23 @@ impl Repository<Contact> for ContactRepository {
     }
 
     async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Contact>, CoreError> {
+        let fts = fts5_query(query);
+        if fts.is_empty() {
+            return Ok(Vec::new());
+        }
         let pool = Arc::clone(&self.pool);
-        let query = format!("%{}%", query);
         let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<Contact>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, name, phones, emails, addresses, notes, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM contacts WHERE user_id = ?1 AND (name LIKE ?2 OR notes LIKE ?2) ORDER BY position ASC, id ASC"
+                "SELECT co.id, co.name, co.phones, co.emails, co.addresses, co.notes, co.tags, co.color_name, co.color_hex, co.is_favorite, co.trash_status, co.created_at, co.updated_at, co.position
+                 FROM contacts co
+                 JOIN contacts_fts ON contacts_fts.rowid = co.rowid
+                 WHERE co.user_id = ?1 AND contacts_fts MATCH ?2
+                 ORDER BY co.position ASC, co.id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, query], row_to_contact)
+            let rows = stmt.query_map(params![user_id, fts], row_to_contact)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut items = Vec::new();
             for row in rows {

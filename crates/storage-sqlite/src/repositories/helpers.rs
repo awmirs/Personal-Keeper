@@ -40,6 +40,47 @@ pub fn parse_item_metadata(row: &Row, tags_start: usize) -> Result<ItemMetadata,
     })
 }
 
+/// Converts a raw user query into FTS5 MATCH syntax.
+///
+/// Strategy: split on whitespace, keep only Unicode alphanumerics plus
+/// `_`, `-` and `.` in each token, wrap every token in double quotes
+/// (escaping embedded `"` by doubling) and append `*` for prefix
+/// matching. Tokens are joined with a space, which FTS5 treats as an
+/// implicit AND.
+///
+/// Examples:
+///   `hello world`   → `"hello"* "world"*`
+///   `"unbalanced`   → `"unbalanced"*`
+///   `a:b (c) -d`    → `"a"* "b"* "c"* "d"*`
+///   `!!!`           → `` (caller must short-circuit on empty result)
+pub fn fts5_query(raw: &str) -> String {
+    let mut out = String::new();
+    for token in raw.split_whitespace() {
+        let cleaned: String = token
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
+            .collect();
+        if cleaned.is_empty() {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push('"');
+        for ch in cleaned.chars() {
+            if ch == '"' {
+                out.push('"');
+                out.push('"');
+            } else {
+                out.push(ch);
+            }
+        }
+        out.push('"');
+        out.push('*');
+    }
+    out
+}
+
 /// Macro to generate `get_next_position` and `update_positions` methods
 /// on a repository struct. Call inside an `impl` block with the table name.
 macro_rules! impl_position_helpers {

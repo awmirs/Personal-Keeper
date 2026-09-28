@@ -18,7 +18,7 @@ impl BookmarkRepository {
     crate::repositories::helpers::impl_position_helpers!("bookmarks");
 }
 
-use super::helpers::parse_item_metadata;
+use super::helpers::{fts5_query, parse_item_metadata};
 
 fn row_to_bookmark(row: &rusqlite::Row) -> Result<Bookmark, rusqlite::Error> {
     let url: String = row.get(1)?;
@@ -155,17 +155,23 @@ impl Repository<Bookmark> for BookmarkRepository {
     }
 
     async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Bookmark>, CoreError> {
+        let fts = fts5_query(query);
+        if fts.is_empty() {
+            return Ok(Vec::new());
+        }
         let pool = Arc::clone(&self.pool);
-        let query = format!("%{}%", query);
         let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<Bookmark>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, url, title, description, favicon, thumbnail, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM bookmarks WHERE user_id = ?1 AND (url LIKE ?2 OR title LIKE ?2 OR description LIKE ?2) ORDER BY position ASC, id ASC"
+                "SELECT b.id, b.url, b.title, b.description, b.favicon, b.thumbnail, b.tags, b.color_name, b.color_hex, b.is_favorite, b.trash_status, b.created_at, b.updated_at, b.position
+                 FROM bookmarks b
+                 JOIN bookmarks_fts ON bookmarks_fts.rowid = b.rowid
+                 WHERE b.user_id = ?1 AND bookmarks_fts MATCH ?2
+                 ORDER BY b.position ASC, b.id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, query], row_to_bookmark)
+            let rows = stmt.query_map(params![user_id, fts], row_to_bookmark)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut items = Vec::new();
             for row in rows {

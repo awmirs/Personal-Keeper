@@ -29,7 +29,7 @@ fn json_to_enc(s: &Option<String>) -> Option<EncryptedData> {
     s.as_ref().and_then(|js| serde_json::from_str(js).ok())
 }
 
-use super::helpers::parse_item_metadata;
+use super::helpers::{fts5_query, parse_item_metadata};
 
 fn row_to_credential(row: &rusqlite::Row) -> Result<Credential, rusqlite::Error> {
     let website: String = row.get(1)?;
@@ -170,17 +170,23 @@ impl Repository<Credential> for CredentialRepository {
     }
 
     async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Credential>, CoreError> {
+        let fts = fts5_query(query);
+        if fts.is_empty() {
+            return Ok(Vec::new());
+        }
         let pool = Arc::clone(&self.pool);
-        let query = format!("%{}%", query);
         let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<Credential>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM credentials WHERE user_id = ?1 AND (website LIKE ?2 OR url LIKE ?2 OR username LIKE ?2) ORDER BY position ASC, id ASC"
+                "SELECT cr.id, cr.website, cr.url, cr.username, cr.password_encrypted, cr.notes_encrypted, cr.totp_secret_encrypted, cr.tags, cr.color_name, cr.color_hex, cr.is_favorite, cr.trash_status, cr.created_at, cr.updated_at, cr.position
+                 FROM credentials cr
+                 JOIN credentials_fts ON credentials_fts.rowid = cr.rowid
+                 WHERE cr.user_id = ?1 AND credentials_fts MATCH ?2
+                 ORDER BY cr.position ASC, cr.id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, query], row_to_credential)
+            let rows = stmt.query_map(params![user_id, fts], row_to_credential)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut items = Vec::new();
             for row in rows {

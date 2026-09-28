@@ -19,7 +19,7 @@ impl NoteRepository {
     crate::repositories::helpers::impl_position_helpers!("notes");
 }
 
-use super::helpers::parse_item_metadata;
+use super::helpers::{fts5_query, parse_item_metadata};
 
 fn row_to_note(row: &rusqlite::Row) -> Result<Note, rusqlite::Error> {
     let title: String = row.get(1)?;
@@ -147,17 +147,23 @@ impl Repository<Note> for NoteRepository {
     }
 
     async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Note>, CoreError> {
+        let fts = fts5_query(query);
+        if fts.is_empty() {
+            return Ok(Vec::new());
+        }
         let pool = Arc::clone(&self.pool);
-        let query = format!("%{}%", query);
         let user_id = user_id.to_string();
         tokio::task::spawn_blocking(move || -> Result<Vec<Note>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut stmt = conn.prepare(
-                "SELECT id, title, content, is_pinned, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM notes WHERE user_id = ?1 AND (title LIKE ?2 OR content LIKE ?2) ORDER BY position ASC, id ASC"
+                "SELECT n.id, n.title, n.content, n.is_pinned, n.tags, n.color_name, n.color_hex, n.is_favorite, n.trash_status, n.created_at, n.updated_at, n.position
+                 FROM notes n
+                 JOIN notes_fts ON notes_fts.rowid = n.rowid
+                 WHERE n.user_id = ?1 AND notes_fts MATCH ?2
+                 ORDER BY n.position ASC, n.id ASC"
             )
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, query], row_to_note)
+            let rows = stmt.query_map(params![user_id, fts], row_to_note)
                 .map_err(|e| CoreError::Storage(e.to_string()))?;
             let mut notes = Vec::new();
             for row in rows {
