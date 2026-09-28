@@ -195,3 +195,18 @@ pub async fn reorder_todos(
     data.todo_repo.update_positions(&user.user_id, &positions).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }
+
+pub fn configure_todos(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::resource("/todos")
+            .route(web::post().to(create_todo))
+            .route(web::get().to(list_todos)),
+    )
+    .service(web::resource("/todos/reorder").route(web::put().to(reorder_todos)))
+    .service(web::resource("/todos/import").route(web::post().to(import_todos)))
+    .service(
+        web::resource("/todos/{id}")
+            .route(web::put().to(update_todo))
+            .route(web::delete().to(delete_todo)),
+    );
+}

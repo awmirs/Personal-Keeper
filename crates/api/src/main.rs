@@ -2,6 +2,7 @@ mod routes;
 mod middleware;
 mod docs;
 mod error;
+mod state;
 
 use actix_web::{web, App, HttpServer};
 use actix_files::Files;
@@ -18,8 +19,7 @@ use storage_sqlite::repositories::users::UserRepository;
 use storage_sqlite::repositories::credentials::CredentialRepository;
 use storage_sqlite::repositories::credentials_config::CredentialConfigRepository;
 use crate::middleware::auth::Authenticated;
-use crate::routes::auth;
-use crate::routes::credentials::VaultSession;
+use crate::state::VaultSession;
 
 struct AppState {
     notes_repo: Arc<dyn domain::traits::repository::Repository<domain::models::note::Note>>,
@@ -104,63 +104,20 @@ async fn main() -> std::io::Result<()> {
             .app_data(app_state.clone())
             // --- public API ---
             .route("/health", web::get().to(routes::health::health))
-            .service(
-                web::scope("/api/auth")
-                    .route("/register", web::post().to(auth::register))
-                    .route("/login", web::post().to(auth::login))
-                    .route("/refresh", web::post().to(auth::refresh))
-                    // protected sub‑scope
-                    .service(
-                        web::scope("")
-                            .wrap(Authenticated)
-                            .route("/me", web::get().to(routes::auth::me)),
-                    ),
-            )
+            .configure(routes::auth::configure_auth)
             // --- protected API (all under /api) ---
             .service(
                 web::scope("/api")
                     .wrap(Authenticated)
                     .app_data(web::JsonConfig::default().limit(64 * 1024 * 1024))
-                    .route("/search", web::get().to(routes::search::search))
+                    .configure(routes::search::configure_search)
                     .configure(crate::routes::history::configure_history)
-                    .route("/notes", web::post().to(routes::notes::create_note))
-                    .route("/notes", web::get().to(routes::notes::list_notes))
-                    .route("/notes/reorder", web::put().to(routes::notes::reorder_notes))
-                    .route("/notes/import", web::post().to(routes::notes::import_notes))
-                    .route("/notes/{id}", web::put().to(routes::notes::update_note))
-                    .route("/notes/{id}", web::delete().to(routes::notes::delete_note))
-                    .route("/clipboard", web::post().to(routes::clipboard::create_clipboard))
-                    .route("/clipboard", web::get().to(routes::clipboard::list_clipboard))
-                    .route("/clipboard/reorder", web::put().to(routes::clipboard::reorder_clipboard))
-                    .route("/clipboard/import", web::post().to(routes::clipboard::import_clipboard))
-                    .route("/clipboard/{id}", web::delete().to(routes::clipboard::delete_clipboard))
-                    .route("/todos", web::post().to(routes::todos::create_todo))
-                    .route("/todos", web::get().to(routes::todos::list_todos))
-                    .route("/todos/reorder", web::put().to(routes::todos::reorder_todos))
-                    .route("/todos/import", web::post().to(routes::todos::import_todos))
-                    .route("/todos/{id}", web::put().to(routes::todos::update_todo))
-                    .route("/todos/{id}", web::delete().to(routes::todos::delete_todo))
-                    .route("/bookmarks", web::post().to(routes::bookmarks::create_bookmark))
-                    .route("/bookmarks", web::get().to(routes::bookmarks::list_bookmarks))
-                    .route("/bookmarks/reorder", web::put().to(routes::bookmarks::reorder_bookmarks))
-                    .route("/bookmarks/import", web::post().to(routes::bookmarks::import_bookmarks))
-                    .route("/bookmarks/{id}", web::put().to(routes::bookmarks::update_bookmark))
-                    .route("/bookmarks/{id}", web::delete().to(routes::bookmarks::delete_bookmark))
-                    .route("/contacts", web::post().to(routes::contacts::create_contact))
-                    .route("/contacts", web::get().to(routes::contacts::list_contacts))
-                    .route("/contacts/reorder", web::put().to(routes::contacts::reorder_contacts))
-                    .route("/contacts/import", web::post().to(routes::contacts::import_contacts))
-                    .route("/contacts/{id}", web::put().to(routes::contacts::update_contact))
-                    .route("/contacts/{id}", web::delete().to(routes::contacts::delete_contact))
-                    .route("/credentials/status", web::get().to(routes::credentials::vault_status))
-                    .route("/credentials/unlock", web::post().to(routes::credentials::unlock))
-                    .route("/credentials/lock", web::post().to(routes::credentials::lock))
-                    .route("/credentials", web::post().to(routes::credentials::create_credential))
-                    .route("/credentials", web::get().to(routes::credentials::list_credentials))
-                    .route("/credentials/reorder", web::put().to(routes::credentials::reorder_credentials))
-                    .route("/credentials/{id}", web::get().to(routes::credentials::get_credential))
-                    .route("/credentials/{id}", web::put().to(routes::credentials::update_credential))
-                    .route("/credentials/{id}", web::delete().to(routes::credentials::delete_credential)),
+                    .configure(routes::notes::configure_notes)
+                    .configure(routes::clipboard::configure_clipboard)
+                    .configure(routes::todos::configure_todos)
+                    .configure(routes::bookmarks::configure_bookmarks)
+                    .configure(routes::contacts::configure_contacts)
+                    .configure(routes::credentials::configure_credentials),
             )
             // --- SPA fallback (serve index.html for anything else) ---
             .configure(|cfg| {

@@ -200,3 +200,18 @@ pub async fn reorder_contacts(
     data.contact_repo.update_positions(&user.user_id, &positions).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }
+
+pub fn configure_contacts(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::resource("/contacts")
+            .route(web::post().to(create_contact))
+            .route(web::get().to(list_contacts)),
+    )
+    .service(web::resource("/contacts/reorder").route(web::put().to(reorder_contacts)))
+    .service(web::resource("/contacts/import").route(web::post().to(import_contacts)))
+    .service(
+        web::resource("/contacts/{id}")
+            .route(web::put().to(update_contact))
+            .route(web::delete().to(delete_contact)),
+    );
+}

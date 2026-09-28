@@ -179,3 +179,18 @@ pub async fn reorder_notes(
     data.notes_repo.update_positions(&user.user_id, &positions).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }
+
+pub fn configure_notes(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::resource("/notes")
+            .route(web::post().to(create_note))
+            .route(web::get().to(list_notes)),
+    )
+    .service(web::resource("/notes/reorder").route(web::put().to(reorder_notes)))
+    .service(web::resource("/notes/import").route(web::post().to(import_notes)))
+    .service(
+        web::resource("/notes/{id}")
+            .route(web::put().to(update_note))
+            .route(web::delete().to(delete_note)),
+    );
+}

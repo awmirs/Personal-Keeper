@@ -196,3 +196,18 @@ pub async fn reorder_bookmarks(
     data.bookmark_repo.update_positions(&user.user_id, &positions).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }
+
+pub fn configure_bookmarks(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::resource("/bookmarks")
+            .route(web::post().to(create_bookmark))
+            .route(web::get().to(list_bookmarks)),
+    )
+    .service(web::resource("/bookmarks/reorder").route(web::put().to(reorder_bookmarks)))
+    .service(web::resource("/bookmarks/import").route(web::post().to(import_bookmarks)))
+    .service(
+        web::resource("/bookmarks/{id}")
+            .route(web::put().to(update_bookmark))
+            .route(web::delete().to(delete_bookmark)),
+    );
+}

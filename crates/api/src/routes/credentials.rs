@@ -5,14 +5,7 @@ use crypto::hash::{hash_password, verify_password};
 use crate::AppState;
 use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
-
-/// One user's unlocked vault: the derived key plus the time of its last
-/// use. `last_used` drives the idle-timeout auto-lock in `get_key`. The
-/// key is zeroized on drop via `MasterKey`'s `ZeroizeOnDrop` derive.
-pub struct VaultSession {
-    pub key: MasterKey,
-    pub last_used: std::time::Instant,
-}
+use crate::state::VaultSession;
 
 /// Encrypt a single credential field, turning any crypto failure into a
 /// 500 that names the field. Used by both create and update paths so a
@@ -312,4 +305,22 @@ pub async fn reorder_credentials(
         .collect();
     data.credential_repo.update_positions(&user.user_id, &positions).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
+}
+
+pub fn configure_credentials(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::resource("/credentials/status").route(web::get().to(vault_status)))
+        .service(web::resource("/credentials/unlock").route(web::post().to(unlock)))
+        .service(web::resource("/credentials/lock").route(web::post().to(lock)))
+        .service(
+            web::resource("/credentials")
+                .route(web::post().to(create_credential))
+                .route(web::get().to(list_credentials)),
+        )
+        .service(web::resource("/credentials/reorder").route(web::put().to(reorder_credentials)))
+        .service(
+            web::resource("/credentials/{id}")
+                .route(web::get().to(get_credential))
+                .route(web::put().to(update_credential))
+                .route(web::delete().to(delete_credential)),
+        );
 }

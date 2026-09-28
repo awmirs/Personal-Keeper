@@ -128,3 +128,18 @@ pub async fn me(
         "username": username,
     }))
 }
+
+pub fn configure_auth(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/api/auth")
+            .route("/register", web::post().to(register))
+            .route("/login", web::post().to(login))
+            .route("/refresh", web::post().to(refresh))
+            // protected sub-scope
+            .service(
+                web::scope("")
+                    .wrap(crate::middleware::auth::Authenticated)
+                    .route("/me", web::get().to(me)),
+            ),
+    );
+}

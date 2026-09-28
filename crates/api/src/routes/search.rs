@@ -120,3 +120,7 @@ pub async fn search(
 
     Ok(HttpResponse::Ok().json(results))
 }
+
+pub fn configure_search(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::resource("/search").route(web::get().to(search)));
+}

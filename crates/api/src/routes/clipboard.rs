@@ -160,3 +160,14 @@ pub async fn reorder_clipboard(
     data.clipboard_repo.update_positions(&user.user_id, &positions).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "status": "ok" })))
 }
+
+pub fn configure_clipboard(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::resource("/clipboard")
+            .route(web::post().to(create_clipboard))
+            .route(web::get().to(list_clipboard)),
+    )
+    .service(web::resource("/clipboard/reorder").route(web::put().to(reorder_clipboard)))
+    .service(web::resource("/clipboard/import").route(web::post().to(import_clipboard)))
+    .service(web::resource("/clipboard/{id}").route(web::delete().to(delete_clipboard)));
+}
