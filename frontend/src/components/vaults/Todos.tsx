@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import api, { reorderVault } from '../../lib/api'
+import api, { getList, reorderVault } from '../../lib/api'
 import type { Todo } from '../../types'
 import { Trash2, CheckCircle, Circle, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -30,8 +30,8 @@ export default function Todos() {
   const fetchTodos = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await api.get('/todos')
-      setTodos(res.data)
+      const todos = await getList<Todo>('/todos')
+      setTodos(todos)
     } catch (err: any) {
       setError(err.message)
     } finally {

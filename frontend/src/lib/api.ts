@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { AxiosRequestConfig } from 'axios'
 import { useAuthStore } from './auth'
 
 const api = axios.create({ baseURL: '/api' })
@@ -94,6 +94,23 @@ api.interceptors.response.use(
     }
 )
 
+/**
+ * Fetch a paginated list endpoint and return only its `items` array.
+ *
+ * Phase D1b changed every list endpoint to return `{ items, next_cursor }`.
+ * This helper preserves the pre-D1c call sites, which expect a bare array.
+ * It is a compatibility shim to be replaced by an explicit page-fetch when
+ * the frontend consumes cursors directly (Phase D2).
+ */
+export async function getList<T>(url: string, config?: AxiosRequestConfig): Promise<T[]> {
+    const res = await api.get(url, config)
+    const data: unknown = res.data
+    if (data !== null && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
+        return (data as { items: T[] }).items
+    }
+    if (Array.isArray(data)) return data as T[]
+    return []
+}
 export default api
 
 // Reorder helper: send new positions to the backend

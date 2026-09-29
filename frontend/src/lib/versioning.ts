@@ -66,8 +66,22 @@ export interface ActivityEntry {
  */
 async function historyFetch<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
     try {
-        const response = await api.request<T>({ ...config, url: path })
-        return response.data
+        const response = await api.request<unknown>({ ...config, url: path })
+        const data = response.data
+        // D1c shim: `/api/history/*` list endpoints now return
+        // `{ items, next_cursor }`. Unwrap transparently for call sites
+        // that expect a bare array. Phase D2 will consume the cursor.
+        if (
+            data !== null &&
+            typeof data === 'object' &&
+            'items' in data &&
+            Array.isArray((data as { items: unknown }).items) &&
+            'next_cursor' in data
+        ) {
+            const page = data as { items: T }
+            return page.items
+        }
+        return data as T
     } catch (err) {
         if (axios.isAxiosError(err)) {
             const data = err.response?.data as { error?: string } | undefined

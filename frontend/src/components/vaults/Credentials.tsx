@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import api, { reorderVault } from '../../lib/api'
+import api, { getList, reorderVault } from '../../lib/api'
 import type { Credential } from '../../types'
 import { Trash2, Lock, Eye, EyeOff, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -55,8 +55,8 @@ export default function Credentials() {
     const fetchCredentials = useCallback(async () => {
         try {
             setLoading(true)
-            const res = await api.get('/credentials')
-            setCredentials(res.data)
+            const credentials = await getList<Credential>('/credentials')
+            setCredentials(credentials)
         } catch (err) {
             console.error('Failed to fetch credentials', err)
         } finally {

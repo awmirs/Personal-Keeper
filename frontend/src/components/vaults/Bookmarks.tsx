@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import api, { reorderVault } from '../../lib/api'
+import api, { getList, reorderVault } from '../../lib/api'
 import type { Bookmark } from '../../types'
 import { Trash2, ExternalLink, Edit3, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -29,8 +29,8 @@ export default function Bookmarks() {
   const fetchBookmarks = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await api.get('/bookmarks')
-      setBookmarks(res.data)
+      const bookmarks = await getList<Bookmark>('/bookmarks')
+      setBookmarks(bookmarks)
     } catch (err: any) {
       setError(err.message)
     } finally {

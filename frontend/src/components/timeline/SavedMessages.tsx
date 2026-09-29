@@ -85,7 +85,9 @@ export default function SavedMessages() {
         let reachable = false
         responses.forEach((response, index) => {
             if (response.status !== 'fulfilled') return
-            const list = (response.value as any)?.data
+            const raw = (response.value as any)?.data
+            // D1c shim: list endpoints now return `{ items, next_cursor }`.
+            const list = raw && Array.isArray(raw.items) ? raw.items : raw
             if (!Array.isArray(list)) return
             reachable = true
             for (const raw of list) {

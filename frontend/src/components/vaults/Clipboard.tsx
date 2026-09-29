@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import api, { reorderVault } from '../../lib/api'
+import api, { getList, reorderVault } from '../../lib/api'
 import type { ClipboardItem } from '../../types'
 import { Trash2, Copy, Check, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -30,8 +30,8 @@ export default function Clipboard() {
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await api.get('/clipboard')
-      setItems(res.data)
+      const items = await getList<ClipboardItem>('/clipboard')
+      setItems(items)
     } catch (err: any) {
       setError(err.message)
     } finally {

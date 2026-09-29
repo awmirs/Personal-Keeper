@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import api, { reorderVault } from '../../lib/api'
+import api, { getList, reorderVault } from '../../lib/api'
 import type { Contact } from '../../types'
 import { Trash2, Phone, Mail, MapPin, Edit3, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -37,8 +37,8 @@ export default function Contacts() {
   const fetchContacts = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await api.get('/contacts')
-      setContacts(res.data)
+      const contacts = await getList<Contact>('/contacts')
+      setContacts(contacts)
     } catch (err: any) {
       setError(err.message)
     } finally {

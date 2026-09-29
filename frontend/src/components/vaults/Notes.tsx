@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import api, { reorderVault } from '../../lib/api'
+import api, { getList, reorderVault } from '../../lib/api'
 import type { Note } from '../../types'
 import ReactMarkdown from 'react-markdown'
 import { markdownPlugins } from '../../lib/markdown'
@@ -29,8 +29,8 @@ export default function Notes() {
     const fetchNotes = useCallback(async () => {
         try {
             setLoading(true)
-            const res = await api.get('/notes')
-            setNotes(res.data)
+            const notes = await getList<Note>('/notes')
+            setNotes(notes)
         } catch (err: any) {
             setError(err.message)
         } finally {
