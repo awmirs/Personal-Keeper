@@ -6,6 +6,8 @@ use crate::AppState;
 use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 use crate::state::VaultSession;
+use crate::routes::dto::ListQuery;
+use domain::traits::repository::Pagination;
 
 /// Encrypt a single credential field, turning any crypto failure into a
 /// 500 that names the field. Used by both create and update paths so a
@@ -188,9 +190,17 @@ pub async fn create_credential(
     Ok(HttpResponse::Created().json(&cred))
 }
 
-pub async fn list_credentials(user: AuthUser, data: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
-    let creds = data.credential_repo.find_all(&user.user_id).await?;
-    Ok(HttpResponse::Ok().json(&creds))
+pub async fn list_credentials(
+    user: AuthUser,
+    data: web::Data<AppState>,
+    query: web::Query<ListQuery>,
+) -> Result<HttpResponse, ApiError> {
+    let pagination = Pagination::new(query.limit, query.cursor.clone());
+    let page = data
+        .credential_repo
+        .find_all_paginated(&user.user_id, pagination)
+        .await?;
+    Ok(HttpResponse::Ok().json(page))
 }
 
 pub async fn get_credential(

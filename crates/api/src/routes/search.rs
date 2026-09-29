@@ -6,6 +6,7 @@ use crate::middleware::auth::AuthUser;
 #[derive(serde::Deserialize)]
 pub struct SearchQuery {
     pub q: Option<String>,
+    pub limit: Option<u32>,
 }
 
 #[derive(serde::Serialize)]
@@ -118,6 +119,10 @@ pub async fn search(
         });
     }
 
+    let limit = query.limit.unwrap_or(50).clamp(1, 500) as usize;
+    if results.len() > limit {
+        results.truncate(limit);
+    }
     Ok(HttpResponse::Ok().json(results))
 }
 

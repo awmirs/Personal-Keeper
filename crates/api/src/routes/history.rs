@@ -10,6 +10,8 @@ use serde_json::{json, Value};
 use crate::error::ApiError;
 use crate::middleware::auth::AuthUser;
 use crate::AppState;
+use crate::routes::dto::ListQuery;
+use domain::traits::repository::Pagination;
 
 /// Credential fields that are never exposed through the history API.
 const SECRET_FIELDS: &[&str] = &["password_encrypted", "notes_encrypted", "totp_secret_encrypted"];
@@ -64,6 +66,7 @@ pub struct ActivityEntryDto {
 pub struct RecentQuery {
     pub limit: Option<i64>,
     pub item_type: Option<String>,
+    pub cursor: Option<String>,
 }
 
 fn parse_snapshot(version: &ItemVersion) -> Result<Value, ApiError> {
@@ -199,20 +202,27 @@ pub async fn list_item_versions(
     user: AuthUser,
     data: web::Data<AppState>,
     path: web::Path<(String, String)>,
+    query: web::Query<ListQuery>,
 ) -> Result<HttpResponse, ApiError> {
     let (item_type, item_id) = path.into_inner();
     if !is_valid_item_type(&item_type) {
         return Err(bad_type(&item_type));
     }
-    let versions = data
+    let pagination = Pagination::new(query.limit, query.cursor.clone());
+    let page = data
         .history_repo
-        .list_versions(&user.user_id, &item_type, &item_id)
+        .list_versions_paginated(&user.user_id, &item_type, &item_id, pagination)
         .await?;
-    let dtos = versions
+    let next_cursor = page.next_cursor;
+    let dtos = page
+        .items
         .iter()
         .map(|version| version_to_dto(version, true))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(HttpResponse::Ok().json(dtos))
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "items": dtos,
+        "next_cursor": next_cursor,
+    })))
 }
 
 pub async fn get_item_version(
@@ -291,17 +301,23 @@ pub async fn recent_activity(
     data: web::Data<AppState>,
     query: web::Query<RecentQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    let limit = query.limit.unwrap_or(50).clamp(1, 200);
+    let limit = query.limit.unwrap_or(50).clamp(1, 200) as u32;
     let item_type = query
         .item_type
         .as_deref()
         .map(str::trim)
         .filter(|t| !t.is_empty());
-    let entries = data
+    let pagination = Pagination {
+        limit,
+        cursor: query.cursor.clone(),
+    };
+    let page = data
         .history_repo
-        .recent_activity(&user.user_id, item_type, limit)
+        .recent_activity_paginated(&user.user_id, item_type, pagination)
         .await?;
-    let dtos = entries
+    let next_cursor = page.next_cursor;
+    let dtos = page
+        .items
         .iter()
         .map(|entry| -> Result<ActivityEntryDto, ApiError> {
             let snapshot = parse_snapshot(entry)?;
@@ -316,7 +332,10 @@ pub async fn recent_activity(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(HttpResponse::Ok().json(dtos))
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "items": dtos,
+        "next_cursor": next_cursor,
+    })))
 }
 
 /// Scope registration: mounted inside the authenticated `/api` scope in

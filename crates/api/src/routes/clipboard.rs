@@ -6,6 +6,7 @@ use crate::middleware::auth::AuthUser;
 use crate::routes::import_common::{
     fill_import_defaults, ImportSpec, ImportStrategy, ImportSummary,
 };
+use domain::traits::repository::Pagination;
 #[allow(unused_imports)]
 pub use crate::routes::dto::{PositionEntry, ReorderRequest};
 
@@ -120,6 +121,8 @@ pub async fn import_clipboard(
 #[derive(serde::Deserialize)]
 pub struct ClipboardQuery {
     pub search: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
 }
 
 pub async fn list_clipboard(
@@ -127,12 +130,17 @@ pub async fn list_clipboard(
     data: web::Data<AppState>,
     query: web::Query<ClipboardQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    let items = if let Some(ref q) = query.search {
-        data.clipboard_repo.search(&user.user_id, q).await?
+    let pagination = Pagination::new(query.limit, query.cursor.clone());
+    let page = if let Some(ref q) = query.search {
+        data.clipboard_repo
+            .search_paginated(&user.user_id, q, pagination)
+            .await?
     } else {
-        data.clipboard_repo.find_all(&user.user_id).await?
+        data.clipboard_repo
+            .find_all_paginated(&user.user_id, pagination)
+            .await?
     };
-    Ok(HttpResponse::Ok().json(&items))
+    Ok(HttpResponse::Ok().json(page))
 }
 
 pub async fn delete_clipboard(

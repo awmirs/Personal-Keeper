@@ -44,7 +44,7 @@ impl Pagination {
 }
 
 /// One page of results plus the cursor for the next page (if any).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Page<T> {
     pub items: Vec<T>,
     pub next_cursor: Option<String>,

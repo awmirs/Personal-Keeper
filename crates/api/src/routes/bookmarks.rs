@@ -6,6 +6,7 @@ use crate::middleware::auth::AuthUser;
 use crate::routes::import_common::{
     fill_import_defaults, ImportSpec, ImportStrategy, ImportSummary,
 };
+use domain::traits::repository::Pagination;
 #[allow(unused_imports)]
 pub use crate::routes::dto::{PositionEntry, ReorderRequest};
 
@@ -119,6 +120,8 @@ pub async fn import_bookmarks(
 #[derive(serde::Deserialize)]
 pub struct BookmarkQuery {
     pub search: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
 }
 
 pub async fn list_bookmarks(
@@ -126,12 +129,17 @@ pub async fn list_bookmarks(
     data: web::Data<AppState>,
     query: web::Query<BookmarkQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    let items = if let Some(ref q) = query.search {
-        data.bookmark_repo.search(&user.user_id, q).await?
+    let pagination = Pagination::new(query.limit, query.cursor.clone());
+    let page = if let Some(ref q) = query.search {
+        data.bookmark_repo
+            .search_paginated(&user.user_id, q, pagination)
+            .await?
     } else {
-        data.bookmark_repo.find_all(&user.user_id).await?
+        data.bookmark_repo
+            .find_all_paginated(&user.user_id, pagination)
+            .await?
     };
-    Ok(HttpResponse::Ok().json(&items))
+    Ok(HttpResponse::Ok().json(page))
 }
 
 pub async fn delete_bookmark(

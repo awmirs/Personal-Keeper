@@ -6,6 +6,8 @@ use crate::middleware::auth::AuthUser;
 use crate::routes::import_common::{
     fill_import_defaults, ImportSpec, ImportStrategy, ImportSummary,
 };
+use crate::routes::dto::ListQuery;
+use domain::traits::repository::Pagination;
 #[allow(unused_imports)]
 pub use crate::routes::dto::{PositionEntry, ReorderRequest};
 
@@ -115,9 +117,14 @@ pub async fn import_notes(
 pub async fn list_notes(
     user: AuthUser,
     data: web::Data<AppState>,
+    query: web::Query<ListQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    let notes = data.notes_repo.find_all(&user.user_id).await?;
-    Ok(HttpResponse::Ok().json(&notes))
+    let pagination = Pagination::new(query.limit, query.cursor.clone());
+    let page = data
+        .notes_repo
+        .find_all_paginated(&user.user_id, pagination)
+        .await?;
+    Ok(HttpResponse::Ok().json(page))
 }
 
 #[cfg_attr(feature = "swagger", derive(utoipa::ToSchema))]
