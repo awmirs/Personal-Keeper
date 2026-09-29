@@ -83,20 +83,34 @@ pub fn fts5_query(raw: &str) -> String {
 
 /// Macro to generate `get_next_position` and `update_positions` methods
 /// on a repository struct. Call inside an `impl` block with the table name.
+///
+/// The `$table` argument doubles as the counter entity name used by
+/// `position_counters`; both must be stable per vault.
 macro_rules! impl_position_helpers {
     ($table:expr) => {
+        /// Atomically reserve the next ordering slot for `user_id`.
+        ///
+        /// A single INSERT … ON CONFLICT DO UPDATE … RETURNING against
+        /// `position_counters` is the whole operation: on first use for a
+        /// (user, entity) pair the row is created with the base table's
+        /// current MAX(position) + 1000, on every later call the counter
+        /// is bumped by 1000 in the same statement. No read-then-write
+        /// race, no extra round trips.
         pub async fn get_next_position(&self, user_id: &str) -> Result<f64, CoreError> {
             let pool = Arc::clone(&self.pool);
+            let entity = $table.to_string();
             let sql = format!(
-                "SELECT COALESCE(MAX(position), 0.0) + 1000.0 FROM {} WHERE user_id = ?1",
-                $table
+                "INSERT INTO position_counters (user_id, entity, next_position) \
+                 VALUES (?1, ?2, COALESCE((SELECT MAX(position) FROM {table} WHERE user_id = ?1), 0.0) + 1000.0) \
+                 ON CONFLICT(user_id, entity) DO UPDATE SET next_position = position_counters.next_position + 1000.0 \
+                 RETURNING next_position",
+                table = $table,
             );
             let user_id = user_id.to_string();
             tokio::task::spawn_blocking(move || {
                 let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-                let mut stmt = conn.prepare(&sql)
-                    .map_err(|e| CoreError::Storage(e.to_string()))?;
-                let pos: f64 = stmt.query_row(rusqlite::params![user_id], |row| row.get(0))
+                let pos: f64 = conn
+                    .query_row(&sql, rusqlite::params![user_id, entity], |row| row.get(0))
                     .map_err(|e| CoreError::Storage(e.to_string()))?;
                 Ok(pos)
             })
@@ -104,16 +118,21 @@ macro_rules! impl_position_helpers {
             .map_err(|e| CoreError::Internal(e.to_string()))?
         }
 
+        /// Apply a batch of (id, position) updates in one transaction.
+        ///
+        /// Uses a single `UPDATE … FROM (VALUES …)` per chunk of 400 rows
+        /// instead of one UPDATE per row. Chunking keeps the parameter
+        /// count under SQLite's 999 limit: 1 (updated_at) + 2 per entry
+        /// (id, position) + 1 (user_id) = 802 max per statement.
         pub async fn update_positions(
             &self,
             user_id: &str,
             positions: &[(uuid::Uuid, f64)],
         ) -> Result<(), CoreError> {
+            if positions.is_empty() {
+                return Ok(());
+            }
             let pool = Arc::clone(&self.pool);
-            let sql = format!(
-                "UPDATE {} SET position = ?1, updated_at = ?2 WHERE id = ?3 AND user_id = ?4",
-                $table
-            );
             let user_id = user_id.to_string();
             let updates: Vec<(String, f64)> = positions
                 .iter()
@@ -122,12 +141,30 @@ macro_rules! impl_position_helpers {
             tokio::task::spawn_blocking(move || {
                 let mut conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
                 let tx = conn.transaction().map_err(|e| CoreError::Storage(e.to_string()))?;
-                for (id, pos) in &updates {
-                    tx.execute(
-                        &sql,
-                        rusqlite::params![pos, chrono::Utc::now().timestamp(), id, user_id],
-                    )
-                    .map_err(|e| CoreError::Storage(e.to_string()))?;
+                let now = chrono::Utc::now().timestamp();
+                for chunk in updates.chunks(400) {
+                    let placeholders: Vec<String> = (0..chunk.len())
+                        .map(|i| format!("(?{}, ?{})", i * 2 + 2, i * 2 + 3))
+                        .collect();
+                    let user_id_param = chunk.len() * 2 + 2;
+                    let sql = format!(
+                        "UPDATE {table} SET position = v.position, updated_at = ?1 \
+                         FROM (VALUES {placeholders}) AS v(id, position) \
+                         WHERE {table}.id = v.id AND {table}.user_id = ?{uidx}",
+                        table = $table,
+                        placeholders = placeholders.join(", "),
+                        uidx = user_id_param,
+                    );
+                    let mut params: Vec<rusqlite::types::Value> =
+                        Vec::with_capacity(chunk.len() * 2 + 2);
+                    params.push(rusqlite::types::Value::Integer(now));
+                    for (id, pos) in chunk {
+                        params.push(rusqlite::types::Value::Text(id.clone()));
+                        params.push(rusqlite::types::Value::Real(*pos));
+                    }
+                    params.push(rusqlite::types::Value::Text(user_id.clone()));
+                    tx.execute(&sql, rusqlite::params_from_iter(params.iter()))
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
                 }
                 tx.commit().map_err(|e| CoreError::Storage(e.to_string()))?;
                 Ok(())
