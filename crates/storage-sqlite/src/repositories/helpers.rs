@@ -81,6 +81,42 @@ pub fn fts5_query(raw: &str) -> String {
     out
 }
 
+/// Encodes a pagination cursor for keyset pagination on
+/// `(position, id) ASC`. UUIDs never contain a `:`, so `split_once(':')`
+/// decodes the cursor unambiguously.
+pub fn encode_cursor(position: f64, id: &str) -> String {
+    format!("{}:{}", position, id)
+}
+
+/// Inverse of `encode_cursor`. Returns `None` if the cursor is
+/// malformed; callers translate that into `CoreError::Validation`.
+pub fn decode_cursor(cursor: &str) -> Option<(f64, String)> {
+    let (pos_s, id) = cursor.split_once(':')?;
+    let pos: f64 = pos_s.parse().ok()?;
+    if id.is_empty() {
+        return None;
+    }
+    Some((pos, id.to_string()))
+}
+
+/// Encodes a cursor for the recent-activity feed, ordered by
+/// `(created_at, version, id) DESC`.
+pub fn encode_activity_cursor(created_at: i64, version: i64, id: &str) -> String {
+    format!("{}:{}:{}", created_at, version, id)
+}
+
+/// Inverse of `encode_activity_cursor`.
+pub fn decode_activity_cursor(cursor: &str) -> Option<(i64, i64, String)> {
+    let mut parts = cursor.splitn(3, ':');
+    let created_at: i64 = parts.next()?.parse().ok()?;
+    let version: i64 = parts.next()?.parse().ok()?;
+    let id = parts.next()?.to_string();
+    if id.is_empty() {
+        return None;
+    }
+    Some((created_at, version, id))
+}
+
 /// Macro to generate `get_next_position` and `update_positions` methods
 /// on a repository struct. Call inside an `impl` block with the table name.
 ///

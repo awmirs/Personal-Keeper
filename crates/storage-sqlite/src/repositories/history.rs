@@ -9,6 +9,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use domain::error::CoreError;
 use domain::models::history::{is_valid_item_type, ItemVersion};
+use domain::traits::repository::{Page, Pagination};
+use crate::repositories::helpers::{decode_activity_cursor, encode_activity_cursor};
 use rusqlite::{params, Connection};
 use std::sync::Arc;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -426,13 +428,76 @@ impl HistoryRepository {
 
 #[async_trait::async_trait]
 impl domain::traits::history::HistoryRepository for HistoryRepository {
-    async fn list_versions(
+    async fn list_versions_paginated(
         &self,
         user_id: &str,
         item_type: &str,
         item_id: &str,
-    ) -> Result<Vec<ItemVersion>, CoreError> {
-        HistoryRepository::list_versions(self, user_id, item_type, item_id).await
+        pagination: Pagination,
+    ) -> Result<Page<ItemVersion>, CoreError> {
+        if !is_valid_item_type(item_type) {
+            return Err(invalid_type(item_type));
+        }
+        let user_id = user_id.to_string();
+        let item_type = item_type.to_string();
+        let item_id = item_id.to_string();
+        let limit = pagination.limit as i64;
+        let before_version: Option<i64> = match pagination.cursor.as_deref() {
+            Some(c) => Some(
+                c.parse::<i64>()
+                    .map_err(|_| CoreError::Validation("Invalid cursor".to_string()))?,
+            ),
+            None => None,
+        };
+        self.with_conn(move |conn| {
+            let fetch = limit.saturating_add(1);
+            let mut versions = Vec::new();
+            if let Some(before) = before_version {
+                let sql = format!(
+                    "SELECT {} FROM item_versions WHERE item_type = ?1 AND item_id = ?2 AND user_id = ?3 AND version < ?4 ORDER BY version DESC LIMIT ?5",
+                    VERSION_COLUMNS
+                );
+                let mut stmt = conn.prepare(&sql).map_err(storage_err)?;
+                let rows = stmt
+                    .query_map(
+                        params![item_type, item_id, user_id, before, fetch],
+                        row_to_version,
+                    )
+                    .map_err(storage_err)?;
+                for row in rows {
+                    versions.push(row.map_err(storage_err)?);
+                }
+            } else {
+                let sql = format!(
+                    "SELECT {} FROM item_versions WHERE item_type = ?1 AND item_id = ?2 AND user_id = ?3 ORDER BY version DESC LIMIT ?4",
+                    VERSION_COLUMNS
+                );
+                let mut stmt = conn.prepare(&sql).map_err(storage_err)?;
+                let rows = stmt
+                    .query_map(
+                        params![item_type, item_id, user_id, fetch],
+                        row_to_version,
+                    )
+                    .map_err(storage_err)?;
+                for row in rows {
+                    versions.push(row.map_err(storage_err)?);
+                }
+            }
+            let has_more = versions.len() as i64 > limit;
+            if has_more {
+                versions.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                versions.last().map(|v| v.version.to_string())
+            } else {
+                None
+            };
+            Ok(Page {
+                items: versions,
+                next_cursor,
+            })
+        })
+        .await
     }
 
     async fn get_version(
@@ -445,13 +510,103 @@ impl domain::traits::history::HistoryRepository for HistoryRepository {
         HistoryRepository::get_version(self, user_id, item_type, item_id, version).await
     }
 
-    async fn recent_activity(
+    async fn recent_activity_paginated(
         &self,
         user_id: &str,
         item_type: Option<&str>,
-        limit: i64,
-    ) -> Result<Vec<ItemVersion>, CoreError> {
-        HistoryRepository::recent_activity(self, user_id, item_type, limit).await
+        pagination: Pagination,
+    ) -> Result<Page<ItemVersion>, CoreError> {
+        let item_type_filter = match item_type {
+            Some(t) if !t.trim().is_empty() => {
+                if !is_valid_item_type(t) {
+                    return Err(invalid_type(t));
+                }
+                Some(t.to_string())
+            }
+            _ => None,
+        };
+        let user_id = user_id.to_string();
+        let limit = pagination.limit as i64;
+        let cursor = pagination.cursor.clone();
+        self.with_conn(move |conn| {
+            let fetch = limit.saturating_add(1);
+            let before: Option<(i64, i64, String)> = match cursor.as_deref() {
+                Some(c) => Some(decode_activity_cursor(c).ok_or_else(|| {
+                    CoreError::Validation("Invalid cursor".to_string())
+                })?),
+                None => None,
+            };
+            let mut out = Vec::new();
+            match (item_type_filter.as_deref(), before) {
+                (Some(t), Some((ca, ver, id))) => {
+                    let sql = format!(
+                        "SELECT {} FROM item_versions WHERE user_id = ?1 AND item_type = ?2 AND (created_at, version, id) < (?3, ?4, ?5) ORDER BY created_at DESC, version DESC, id DESC LIMIT ?6",
+                        VERSION_COLUMNS
+                    );
+                    let mut stmt = conn.prepare(&sql).map_err(storage_err)?;
+                    let rows = stmt
+                        .query_map(params![user_id, t, ca, ver, id, fetch], row_to_version)
+                        .map_err(storage_err)?;
+                    for row in rows {
+                        out.push(row.map_err(storage_err)?);
+                    }
+                }
+                (Some(t), None) => {
+                    let sql = format!(
+                        "SELECT {} FROM item_versions WHERE user_id = ?1 AND item_type = ?2 ORDER BY created_at DESC, version DESC, id DESC LIMIT ?3",
+                        VERSION_COLUMNS
+                    );
+                    let mut stmt = conn.prepare(&sql).map_err(storage_err)?;
+                    let rows = stmt
+                        .query_map(params![user_id, t, fetch], row_to_version)
+                        .map_err(storage_err)?;
+                    for row in rows {
+                        out.push(row.map_err(storage_err)?);
+                    }
+                }
+                (None, Some((ca, ver, id))) => {
+                    let sql = format!(
+                        "SELECT {} FROM item_versions WHERE user_id = ?1 AND (created_at, version, id) < (?2, ?3, ?4) ORDER BY created_at DESC, version DESC, id DESC LIMIT ?5",
+                        VERSION_COLUMNS
+                    );
+                    let mut stmt = conn.prepare(&sql).map_err(storage_err)?;
+                    let rows = stmt
+                        .query_map(params![user_id, ca, ver, id, fetch], row_to_version)
+                        .map_err(storage_err)?;
+                    for row in rows {
+                        out.push(row.map_err(storage_err)?);
+                    }
+                }
+                (None, None) => {
+                    let sql = format!(
+                        "SELECT {} FROM item_versions WHERE user_id = ?1 ORDER BY created_at DESC, version DESC, id DESC LIMIT ?2",
+                        VERSION_COLUMNS
+                    );
+                    let mut stmt = conn.prepare(&sql).map_err(storage_err)?;
+                    let rows = stmt
+                        .query_map(params![user_id, fetch], row_to_version)
+                        .map_err(storage_err)?;
+                    for row in rows {
+                        out.push(row.map_err(storage_err)?);
+                    }
+                }
+            }
+            let has_more = out.len() as i64 > limit;
+            if has_more {
+                out.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                out.last()
+                    .map(|v| encode_activity_cursor(v.created_at, v.version, &v.id))
+            } else {
+                None
+            };
+            Ok(Page {
+                items: out,
+                next_cursor,
+            })
+        })
+        .await
     }
 
     async fn restore_version(

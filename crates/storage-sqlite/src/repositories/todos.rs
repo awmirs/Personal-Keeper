@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::error::CoreError;
 use domain::models::todo::Todo;
-use domain::traits::repository::Repository;
+use domain::traits::repository::{Pagination, Page, Repository};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
@@ -18,7 +18,7 @@ impl TodoRepository {
     crate::repositories::helpers::impl_position_helpers!("todos");
 }
 
-use super::helpers::{fts5_query, parse_item_metadata};
+use super::helpers::{decode_cursor, encode_cursor, fts5_query, parse_item_metadata};
 
 fn row_to_todo(row: &rusqlite::Row) -> Result<Todo, rusqlite::Error> {
     let title: String = row.get(1)?;
@@ -114,23 +114,57 @@ impl Repository<Todo> for TodoRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn find_all(&self, user_id: &str) -> Result<Vec<Todo>, CoreError> {
+        async fn find_all_paginated(
+        &self,
+        user_id: &str,
+        pagination: Pagination,
+    ) -> Result<Page<Todo>, CoreError> {
         let pool = Arc::clone(&self.pool);
         let user_id = user_id.to_string();
-        tokio::task::spawn_blocking(move || -> Result<Vec<Todo>, CoreError> {
+        let limit = pagination.limit as i64;
+        let cursor = pagination.cursor.clone();
+        tokio::task::spawn_blocking(move || -> Result<Page<Todo>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare(
-                "SELECT id, title, description, completed, due_date, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM todos WHERE user_id = ?1 ORDER BY position ASC, id ASC"
-            )
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id], row_to_todo)
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut items = Vec::new();
-            for row in rows {
-                items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+            let fetch = limit.saturating_add(1);
+            let mut items: Vec<Todo> = Vec::new();
+            match cursor {
+                Some(c) => {
+                    let (pos, id) = decode_cursor(&c)
+                        .ok_or_else(|| CoreError::Validation("Invalid cursor".to_string()))?;
+                    let mut stmt = conn.prepare(
+                        "SELECT id, title, description, completed, due_date, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                         FROM todos WHERE user_id = ?1 AND (position, id) > (?2, ?3) ORDER BY position ASC, id ASC LIMIT ?4"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, pos, id, fetch], row_to_todo)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
+                None => {
+                    let mut stmt = conn.prepare(
+                        "SELECT id, title, description, completed, due_date, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                         FROM todos WHERE user_id = ?1 ORDER BY position ASC, id ASC LIMIT ?2"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fetch], row_to_todo)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
             }
-            Ok(items)
+            let has_more = items.len() as i64 > limit;
+            if has_more {
+                items.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                items.last().map(|it| encode_cursor(it.meta.position, &it.meta.id.to_string()))
+            } else {
+                None
+            };
+            Ok(Page { items, next_cursor })
         })
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?
@@ -150,30 +184,68 @@ impl Repository<Todo> for TodoRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Todo>, CoreError> {
+        async fn search_paginated(
+        &self,
+        user_id: &str,
+        query: &str,
+        pagination: Pagination,
+    ) -> Result<Page<Todo>, CoreError> {
         let fts = fts5_query(query);
         if fts.is_empty() {
-            return Ok(Vec::new());
+            return Ok(Page::empty());
         }
         let pool = Arc::clone(&self.pool);
         let user_id = user_id.to_string();
-        tokio::task::spawn_blocking(move || -> Result<Vec<Todo>, CoreError> {
+        let limit = pagination.limit as i64;
+        let cursor = pagination.cursor.clone();
+        tokio::task::spawn_blocking(move || -> Result<Page<Todo>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare(
-                "SELECT t.id, t.title, t.description, t.completed, t.due_date, t.tags, t.color_name, t.color_hex, t.is_favorite, t.trash_status, t.created_at, t.updated_at, t.position
-                 FROM todos t
-                 JOIN todos_fts ON todos_fts.rowid = t.rowid
-                 WHERE t.user_id = ?1 AND todos_fts MATCH ?2
-                 ORDER BY t.position ASC, t.id ASC"
-            )
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, fts], row_to_todo)
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut items = Vec::new();
-            for row in rows {
-                items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+            let fetch = limit.saturating_add(1);
+            let mut items: Vec<Todo> = Vec::new();
+            match cursor {
+                Some(c) => {
+                    let (pos, id) = decode_cursor(&c)
+                        .ok_or_else(|| CoreError::Validation("Invalid cursor".to_string()))?;
+                    let mut stmt = conn.prepare(
+                        "SELECT t.id, t.title, t.description, t.completed, t.due_date, t.tags, t.color_name, t.color_hex, t.is_favorite, t.trash_status, t.created_at, t.updated_at, t.position
+                         FROM todos t
+                         JOIN todos_fts ON todos_fts.rowid = t.rowid
+                         WHERE t.user_id = ?1 AND todos_fts MATCH ?2 AND (t.position, t.id) > (?3, ?4)
+                         ORDER BY t.position ASC, t.id ASC LIMIT ?5"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fts, pos, id, fetch], row_to_todo)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
+                None => {
+                    let mut stmt = conn.prepare(
+                        "SELECT t.id, t.title, t.description, t.completed, t.due_date, t.tags, t.color_name, t.color_hex, t.is_favorite, t.trash_status, t.created_at, t.updated_at, t.position
+                         FROM todos t
+                         JOIN todos_fts ON todos_fts.rowid = t.rowid
+                         WHERE t.user_id = ?1 AND todos_fts MATCH ?2
+                         ORDER BY t.position ASC, t.id ASC LIMIT ?3"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fts, fetch], row_to_todo)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
             }
-            Ok(items)
+            let has_more = items.len() as i64 > limit;
+            if has_more {
+                items.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                items.last().map(|it| encode_cursor(it.meta.position, &it.meta.id.to_string()))
+            } else {
+                None
+            };
+            Ok(Page { items, next_cursor })
         })
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?

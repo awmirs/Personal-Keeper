@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::error::CoreError;
 use domain::models::credential::{Credential, EncryptedData};
-use domain::traits::repository::Repository;
+use domain::traits::repository::{Pagination, Page, Repository};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
@@ -29,7 +29,7 @@ fn json_to_enc(s: &Option<String>) -> Option<EncryptedData> {
     s.as_ref().and_then(|js| serde_json::from_str(js).ok())
 }
 
-use super::helpers::{fts5_query, parse_item_metadata};
+use super::helpers::{decode_cursor, encode_cursor, fts5_query, parse_item_metadata};
 
 fn row_to_credential(row: &rusqlite::Row) -> Result<Credential, rusqlite::Error> {
     let website: String = row.get(1)?;
@@ -133,23 +133,57 @@ impl Repository<Credential> for CredentialRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn find_all(&self, user_id: &str) -> Result<Vec<Credential>, CoreError> {
+        async fn find_all_paginated(
+        &self,
+        user_id: &str,
+        pagination: Pagination,
+    ) -> Result<Page<Credential>, CoreError> {
         let pool = Arc::clone(&self.pool);
         let user_id = user_id.to_string();
-        tokio::task::spawn_blocking(move || -> Result<Vec<Credential>, CoreError> {
+        let limit = pagination.limit as i64;
+        let cursor = pagination.cursor.clone();
+        tokio::task::spawn_blocking(move || -> Result<Page<Credential>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare(
-                "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM credentials WHERE user_id = ?1 ORDER BY position ASC, id ASC"
-            )
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id], row_to_credential)
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut items = Vec::new();
-            for row in rows {
-                items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+            let fetch = limit.saturating_add(1);
+            let mut items: Vec<Credential> = Vec::new();
+            match cursor {
+                Some(c) => {
+                    let (pos, id) = decode_cursor(&c)
+                        .ok_or_else(|| CoreError::Validation("Invalid cursor".to_string()))?;
+                    let mut stmt = conn.prepare(
+                        "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                         FROM credentials WHERE user_id = ?1 AND (position, id) > (?2, ?3) ORDER BY position ASC, id ASC LIMIT ?4"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, pos, id, fetch], row_to_credential)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
+                None => {
+                    let mut stmt = conn.prepare(
+                        "SELECT id, website, url, username, password_encrypted, notes_encrypted, totp_secret_encrypted, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                         FROM credentials WHERE user_id = ?1 ORDER BY position ASC, id ASC LIMIT ?2"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fetch], row_to_credential)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
             }
-            Ok(items)
+            let has_more = items.len() as i64 > limit;
+            if has_more {
+                items.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                items.last().map(|it| encode_cursor(it.meta.position, &it.meta.id.to_string()))
+            } else {
+                None
+            };
+            Ok(Page { items, next_cursor })
         })
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?
@@ -169,30 +203,68 @@ impl Repository<Credential> for CredentialRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Credential>, CoreError> {
+        async fn search_paginated(
+        &self,
+        user_id: &str,
+        query: &str,
+        pagination: Pagination,
+    ) -> Result<Page<Credential>, CoreError> {
         let fts = fts5_query(query);
         if fts.is_empty() {
-            return Ok(Vec::new());
+            return Ok(Page::empty());
         }
         let pool = Arc::clone(&self.pool);
         let user_id = user_id.to_string();
-        tokio::task::spawn_blocking(move || -> Result<Vec<Credential>, CoreError> {
+        let limit = pagination.limit as i64;
+        let cursor = pagination.cursor.clone();
+        tokio::task::spawn_blocking(move || -> Result<Page<Credential>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare(
-                "SELECT cr.id, cr.website, cr.url, cr.username, cr.password_encrypted, cr.notes_encrypted, cr.totp_secret_encrypted, cr.tags, cr.color_name, cr.color_hex, cr.is_favorite, cr.trash_status, cr.created_at, cr.updated_at, cr.position
-                 FROM credentials cr
-                 JOIN credentials_fts ON credentials_fts.rowid = cr.rowid
-                 WHERE cr.user_id = ?1 AND credentials_fts MATCH ?2
-                 ORDER BY cr.position ASC, cr.id ASC"
-            )
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, fts], row_to_credential)
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut items = Vec::new();
-            for row in rows {
-                items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+            let fetch = limit.saturating_add(1);
+            let mut items: Vec<Credential> = Vec::new();
+            match cursor {
+                Some(c) => {
+                    let (pos, id) = decode_cursor(&c)
+                        .ok_or_else(|| CoreError::Validation("Invalid cursor".to_string()))?;
+                    let mut stmt = conn.prepare(
+                        "SELECT cr.id, cr.website, cr.url, cr.username, cr.password_encrypted, cr.notes_encrypted, cr.totp_secret_encrypted, cr.tags, cr.color_name, cr.color_hex, cr.is_favorite, cr.trash_status, cr.created_at, cr.updated_at, cr.position
+                         FROM credentials cr
+                         JOIN credentials_fts ON credentials_fts.rowid = cr.rowid
+                         WHERE cr.user_id = ?1 AND credentials_fts MATCH ?2 AND (cr.position, cr.id) > (?3, ?4)
+                         ORDER BY cr.position ASC, cr.id ASC LIMIT ?5"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fts, pos, id, fetch], row_to_credential)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
+                None => {
+                    let mut stmt = conn.prepare(
+                        "SELECT cr.id, cr.website, cr.url, cr.username, cr.password_encrypted, cr.notes_encrypted, cr.totp_secret_encrypted, cr.tags, cr.color_name, cr.color_hex, cr.is_favorite, cr.trash_status, cr.created_at, cr.updated_at, cr.position
+                         FROM credentials cr
+                         JOIN credentials_fts ON credentials_fts.rowid = cr.rowid
+                         WHERE cr.user_id = ?1 AND credentials_fts MATCH ?2
+                         ORDER BY cr.position ASC, cr.id ASC LIMIT ?3"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fts, fetch], row_to_credential)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
             }
-            Ok(items)
+            let has_more = items.len() as i64 > limit;
+            if has_more {
+                items.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                items.last().map(|it| encode_cursor(it.meta.position, &it.meta.id.to_string()))
+            } else {
+                None
+            };
+            Ok(Page { items, next_cursor })
         })
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?

@@ -5,7 +5,7 @@ use rusqlite::params;
 use std::sync::Arc;
 use domain::error::CoreError;
 use domain::models::note::Note;
-use domain::traits::repository::Repository;
+use domain::traits::repository::{Pagination, Page, Repository};
 
 pub struct NoteRepository {
     pool: Arc<Pool<SqliteConnectionManager>>,
@@ -19,7 +19,7 @@ impl NoteRepository {
     crate::repositories::helpers::impl_position_helpers!("notes");
 }
 
-use super::helpers::{fts5_query, parse_item_metadata};
+use super::helpers::{decode_cursor, encode_cursor, fts5_query, parse_item_metadata};
 
 fn row_to_note(row: &rusqlite::Row) -> Result<Note, rusqlite::Error> {
     let title: String = row.get(1)?;
@@ -110,23 +110,57 @@ impl Repository<Note> for NoteRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn find_all(&self, user_id: &str) -> Result<Vec<Note>, CoreError> {
+        async fn find_all_paginated(
+        &self,
+        user_id: &str,
+        pagination: Pagination,
+    ) -> Result<Page<Note>, CoreError> {
         let pool = Arc::clone(&self.pool);
         let user_id = user_id.to_string();
-        tokio::task::spawn_blocking(move || -> Result<Vec<Note>, CoreError> {
+        let limit = pagination.limit as i64;
+        let cursor = pagination.cursor.clone();
+        tokio::task::spawn_blocking(move || -> Result<Page<Note>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare(
-                "SELECT id, title, content, is_pinned, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
-                 FROM notes WHERE user_id = ?1 ORDER BY position ASC, id ASC"
-            )
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id], row_to_note)
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut notes = Vec::new();
-            for row in rows {
-                notes.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+            let fetch = limit.saturating_add(1);
+            let mut items: Vec<Note> = Vec::new();
+            match cursor {
+                Some(c) => {
+                    let (pos, id) = decode_cursor(&c)
+                        .ok_or_else(|| CoreError::Validation("Invalid cursor".to_string()))?;
+                    let mut stmt = conn.prepare(
+                        "SELECT id, title, content, is_pinned, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                         FROM notes WHERE user_id = ?1 AND (position, id) > (?2, ?3) ORDER BY position ASC, id ASC LIMIT ?4"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, pos, id, fetch], row_to_note)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
+                None => {
+                    let mut stmt = conn.prepare(
+                        "SELECT id, title, content, is_pinned, tags, color_name, color_hex, is_favorite, trash_status, created_at, updated_at, position
+                         FROM notes WHERE user_id = ?1 ORDER BY position ASC, id ASC LIMIT ?2"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fetch], row_to_note)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
             }
-            Ok(notes)
+            let has_more = items.len() as i64 > limit;
+            if has_more {
+                items.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                items.last().map(|it| encode_cursor(it.meta.position, &it.meta.id.to_string()))
+            } else {
+                None
+            };
+            Ok(Page { items, next_cursor })
         })
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?
@@ -146,30 +180,68 @@ impl Repository<Note> for NoteRepository {
             .map_err(|e| CoreError::Internal(e.to_string()))?
     }
 
-    async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Note>, CoreError> {
+        async fn search_paginated(
+        &self,
+        user_id: &str,
+        query: &str,
+        pagination: Pagination,
+    ) -> Result<Page<Note>, CoreError> {
         let fts = fts5_query(query);
         if fts.is_empty() {
-            return Ok(Vec::new());
+            return Ok(Page::empty());
         }
         let pool = Arc::clone(&self.pool);
         let user_id = user_id.to_string();
-        tokio::task::spawn_blocking(move || -> Result<Vec<Note>, CoreError> {
+        let limit = pagination.limit as i64;
+        let cursor = pagination.cursor.clone();
+        tokio::task::spawn_blocking(move || -> Result<Page<Note>, CoreError> {
             let conn = pool.get().map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare(
-                "SELECT n.id, n.title, n.content, n.is_pinned, n.tags, n.color_name, n.color_hex, n.is_favorite, n.trash_status, n.created_at, n.updated_at, n.position
-                 FROM notes n
-                 JOIN notes_fts ON notes_fts.rowid = n.rowid
-                 WHERE n.user_id = ?1 AND notes_fts MATCH ?2
-                 ORDER BY n.position ASC, n.id ASC"
-            )
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let rows = stmt.query_map(params![user_id, fts], row_to_note)
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            let mut notes = Vec::new();
-            for row in rows {
-                notes.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+            let fetch = limit.saturating_add(1);
+            let mut items: Vec<Note> = Vec::new();
+            match cursor {
+                Some(c) => {
+                    let (pos, id) = decode_cursor(&c)
+                        .ok_or_else(|| CoreError::Validation("Invalid cursor".to_string()))?;
+                    let mut stmt = conn.prepare(
+                        "SELECT n.id, n.title, n.content, n.is_pinned, n.tags, n.color_name, n.color_hex, n.is_favorite, n.trash_status, n.created_at, n.updated_at, n.position
+                         FROM notes n
+                         JOIN notes_fts ON notes_fts.rowid = n.rowid
+                         WHERE n.user_id = ?1 AND notes_fts MATCH ?2 AND (n.position, n.id) > (?3, ?4)
+                         ORDER BY n.position ASC, n.id ASC LIMIT ?5"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fts, pos, id, fetch], row_to_note)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
+                None => {
+                    let mut stmt = conn.prepare(
+                        "SELECT n.id, n.title, n.content, n.is_pinned, n.tags, n.color_name, n.color_hex, n.is_favorite, n.trash_status, n.created_at, n.updated_at, n.position
+                         FROM notes n
+                         JOIN notes_fts ON notes_fts.rowid = n.rowid
+                         WHERE n.user_id = ?1 AND notes_fts MATCH ?2
+                         ORDER BY n.position ASC, n.id ASC LIMIT ?3"
+                    )
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    let rows = stmt.query_map(params![user_id, fts, fetch], row_to_note)
+                        .map_err(|e| CoreError::Storage(e.to_string()))?;
+                    for row in rows {
+                        items.push(row.map_err(|e| CoreError::Storage(e.to_string()))?);
+                    }
+                }
             }
-            Ok(notes)
+            let has_more = items.len() as i64 > limit;
+            if has_more {
+                items.truncate(limit as usize);
+            }
+            let next_cursor = if has_more {
+                items.last().map(|it| encode_cursor(it.meta.position, &it.meta.id.to_string()))
+            } else {
+                None
+            };
+            Ok(Page { items, next_cursor })
         })
             .await
             .map_err(|e| CoreError::Internal(e.to_string()))?
