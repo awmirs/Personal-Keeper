@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
-import api, { getList, reorderVault } from '../../lib/api'
+import { useEffect, useState } from 'react'
+import api, { reorderVault } from '../../lib/api'
+import { usePaginatedList, VAULT_PAGE_SIZE } from '../../lib/usePaginatedList'
 import type { Credential } from '../../types'
 import { Trash2, Lock, Eye, EyeOff, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -23,8 +24,20 @@ export default function Credentials() {
             .catch(() => setFirstTime(false))
     }, [])
 
-    const [credentials, setCredentials] = useState<Credential[]>([])
-    const [loading, setLoading] = useState(false)
+    const {
+        items: credentials,
+        setItems: setCredentials,
+        loading,
+        error: listError,
+        nextCursor,
+        loadingMore,
+        loadMoreError,
+        reload: fetchCredentials,
+        loadMore,
+    } = usePaginatedList<Credential>(
+        unlocked ? '/credentials' : null,
+        VAULT_PAGE_SIZE.credentials,
+    )
     const [search, setSearch] = useState('')
 
     const [showCreate, setShowCreate] = useState(false)
@@ -52,18 +65,6 @@ export default function Credentials() {
         totp_secret: '',
     })
 
-    const fetchCredentials = useCallback(async () => {
-        try {
-            setLoading(true)
-            const credentials = await getList<Credential>('/credentials')
-            setCredentials(credentials)
-        } catch (err) {
-            console.error('Failed to fetch credentials', err)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
     const handleUnlock = async (e: React.FormEvent) => {
         e.preventDefault()
         setUnlockError('')
@@ -73,7 +74,7 @@ export default function Credentials() {
                 setFirstTime(false)
             }
             setUnlocked(true)
-            fetchCredentials()
+            // The hook picks up the url change and fetches page 1.
         } catch (err: any) {
             setUnlockError(err.response?.data?.error || 'Unlock failed')
         }
@@ -310,8 +311,15 @@ export default function Credentials() {
                 </button>
             }
             loading={loading}
+            error={listError}
             items={filtered}
             renderItem={renderCredential}
+            loadMore={{
+                hasMore: nextCursor !== null,
+                loading: loadingMore,
+                error: loadMoreError,
+                onLoadMore: loadMore,
+            }}
             createForm={showCreate && (
                 <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
                     <input

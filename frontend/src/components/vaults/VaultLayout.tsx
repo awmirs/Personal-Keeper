@@ -8,6 +8,7 @@ import ViewSwitcher from '../ViewSwitcher'
 import ListView from '../views/ListView'
 import GridView from '../views/GridView'
 import CompactListView from '../views/CompactListView'
+import InfiniteScrollSentinel from '../InfiniteScrollSentinel'
 import { useViewStore, ViewType } from '../../stores/viewStore'
 
 interface VaultLayoutProps<T> {
@@ -29,6 +30,12 @@ interface VaultLayoutProps<T> {
     items: T[]
     renderItem: (item: T, index: number) => React.ReactNode
     detailModal?: React.ReactNode
+    loadMore?: {
+        hasMore: boolean
+        loading: boolean
+        error: string | null
+        onLoadMore: () => void
+    }
 }
 
 export default function VaultLayout<T>({
@@ -50,6 +57,7 @@ export default function VaultLayout<T>({
     items,
     renderItem,
     detailModal,
+    loadMore,
 }: VaultLayoutProps<T>) {
     const view = useViewStore((s) => (s.views[vaultKey] || 'list') as ViewType)
 
@@ -208,6 +216,15 @@ export default function VaultLayout<T>({
             {view === 'list' && <ListView items={items} renderItem={renderItem} />}
             {view === 'grid' && <GridView items={items} renderItem={renderItem} />}
             {view === 'compact' && <CompactListView items={items} renderItem={renderItem} />}
+
+            {loadMore && !loading && (
+                <InfiniteScrollSentinel
+                    hasMore={loadMore.hasMore}
+                    loading={loadMore.loading}
+                    error={loadMore.error}
+                    onLoadMore={loadMore.onLoadMore}
+                />
+            )}
 
             {detailModal}
 

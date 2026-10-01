@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
-import api, { getList, reorderVault } from '../../lib/api'
+import { useState } from 'react'
+import api, { reorderVault } from '../../lib/api'
+import { usePaginatedList, VAULT_PAGE_SIZE } from '../../lib/usePaginatedList'
 import type { ClipboardItem } from '../../types'
 import { Trash2, Copy, Check, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -11,9 +12,17 @@ import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Clipboard() {
   const { confirm } = useConfirmation()
-  const [items, setItems] = useState<ClipboardItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    items,
+    setItems,
+    loading,
+    error,
+    nextCursor,
+    loadingMore,
+    loadMoreError,
+    reload: fetchItems,
+    loadMore,
+  } = usePaginatedList<ClipboardItem>('/clipboard', VAULT_PAGE_SIZE.clipboard)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [newContent, setNewContent] = useState('')
@@ -26,22 +35,6 @@ export default function Clipboard() {
     if (text.length <= maxLen) return text
     return text.slice(0, maxLen).trimEnd() + '…'
   }
-
-  const fetchItems = useCallback(async () => {
-    try {
-      setLoading(true)
-      const items = await getList<ClipboardItem>('/clipboard')
-      setItems(items)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchItems()
-  }, [fetchItems])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -183,6 +176,12 @@ export default function Clipboard() {
           error={error}
           items={filtered}
           renderItem={renderItem}
+          loadMore={{
+              hasMore: nextCursor !== null,
+              loading: loadingMore,
+              error: loadMoreError,
+              onLoadMore: loadMore,
+          }}
           createForm={showCreate && (
               <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
                 <textarea

@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
-import api, { getList, reorderVault } from '../../lib/api'
+import { useState } from 'react'
+import api, { reorderVault } from '../../lib/api'
+import { usePaginatedList, VAULT_PAGE_SIZE } from '../../lib/usePaginatedList'
 import type { Note } from '../../types'
 import ReactMarkdown from 'react-markdown'
 import { markdownPlugins } from '../../lib/markdown'
@@ -12,9 +13,17 @@ import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Notes() {
     const { confirm } = useConfirmation()
-    const [notes, setNotes] = useState<Note[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const {
+        items: notes,
+        setItems: setNotes,
+        loading,
+        error,
+        nextCursor,
+        loadingMore,
+        loadMoreError,
+        reload: fetchNotes,
+        loadMore,
+    } = usePaginatedList<Note>('/notes', VAULT_PAGE_SIZE.notes)
     const [search, setSearch] = useState('')
     const [showCreate, setShowCreate] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -25,22 +34,6 @@ export default function Notes() {
     const [selectedNote, setSelectedNote] = useState<Note | null>(null)
     const [editingInModal, setEditingInModal] = useState(false)
     const view = useViewStore((s) => s.views.notes || 'list')
-
-    const fetchNotes = useCallback(async () => {
-        try {
-            setLoading(true)
-            const notes = await getList<Note>('/notes')
-            setNotes(notes)
-        } catch (err: any) {
-            setError(err.message)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    useEffect(() => {
-        fetchNotes()
-    }, [fetchNotes])
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -240,6 +233,12 @@ export default function Notes() {
             error={error}
             items={filteredNotes}
             renderItem={renderNote}
+            loadMore={{
+                hasMore: nextCursor !== null,
+                loading: loadingMore,
+                error: loadMoreError,
+                onLoadMore: loadMore,
+            }}
             createForm={showCreate && (
                 <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
                     <input

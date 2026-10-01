@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
-import api, { getList, reorderVault } from '../../lib/api'
+import { useState } from 'react'
+import api, { reorderVault } from '../../lib/api'
+import { usePaginatedList, VAULT_PAGE_SIZE } from '../../lib/usePaginatedList'
 import type { Todo } from '../../types'
 import { Trash2, CheckCircle, Circle, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -11,9 +12,17 @@ import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Todos() {
   const { confirm } = useConfirmation()
-  const [todos, setTodos] = useState<Todo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    items: todos,
+    setItems: setTodos,
+    loading,
+    error,
+    nextCursor,
+    loadingMore,
+    loadMoreError,
+    reload: fetchTodos,
+    loadMore,
+  } = usePaginatedList<Todo>('/todos', VAULT_PAGE_SIZE.todos)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -26,22 +35,6 @@ export default function Todos() {
     if (text.length <= maxLen) return text
     return text.slice(0, maxLen).trimEnd() + '…'
   }
-
-  const fetchTodos = useCallback(async () => {
-    try {
-      setLoading(true)
-      const todos = await getList<Todo>('/todos')
-      setTodos(todos)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchTodos()
-  }, [fetchTodos])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -203,6 +196,12 @@ export default function Todos() {
           error={error}
           items={filtered}
           renderItem={renderTodo}
+          loadMore={{
+              hasMore: nextCursor !== null,
+              loading: loadingMore,
+              error: loadMoreError,
+              onLoadMore: loadMore,
+          }}
           createForm={showCreate && (
               <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
                 <input

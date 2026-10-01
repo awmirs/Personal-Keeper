@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
-import api, { getList, reorderVault } from '../../lib/api'
+import { useState } from 'react'
+import api, { reorderVault } from '../../lib/api'
+import { usePaginatedList, VAULT_PAGE_SIZE } from '../../lib/usePaginatedList'
 import type { Bookmark } from '../../types'
 import { Trash2, ExternalLink, Edit3, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { calculateFractionalPosition } from '../../lib/reorder'
@@ -11,9 +12,17 @@ import ItemHistoryButton from '../history/ItemHistoryButton'
 
 export default function Bookmarks() {
   const { confirm } = useConfirmation()
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    items: bookmarks,
+    setItems: setBookmarks,
+    loading,
+    error,
+    nextCursor,
+    loadingMore,
+    loadMoreError,
+    reload: fetchBookmarks,
+    loadMore,
+  } = usePaginatedList<Bookmark>('/bookmarks', VAULT_PAGE_SIZE.bookmarks)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -25,20 +34,6 @@ export default function Bookmarks() {
   const view = useViewStore((s) => s.views.bookmarks || 'list')
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null)
   const [editingInModal, setEditingInModal] = useState(false)
-
-  const fetchBookmarks = useCallback(async () => {
-    try {
-      setLoading(true)
-      const bookmarks = await getList<Bookmark>('/bookmarks')
-      setBookmarks(bookmarks)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { fetchBookmarks() }, [fetchBookmarks])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -196,6 +191,12 @@ export default function Bookmarks() {
           error={error}
           items={filtered}
           renderItem={renderBookmark}
+          loadMore={{
+              hasMore: nextCursor !== null,
+              loading: loadingMore,
+              error: loadMoreError,
+              onLoadMore: loadMore,
+          }}
           createForm={showCreate && (
               <form onSubmit={handleCreate} className="mb-6 rounded bg-white p-4 shadow dark:bg-gray-800">
                 <input type="url" placeholder="URL (required)" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} className="mb-3 w-full rounded border p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
